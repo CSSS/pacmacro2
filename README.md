@@ -1,6 +1,7 @@
-# PacMacro 2023
+# PacMacro
 
-This repository holds the source code for the PacMacro event during CSSS Frosh Week 2023 ([RETRO FROSH](https://sfucsss.org/events/frosh/2023)).
+This repository holds the source code for the PacMacro event typically run during Frosh Week.
+Originally forked from [https://github.com/micahdbak/pacmacro](https://github.com/micahdbak/pacmacro)
 
 ## Structure
 
