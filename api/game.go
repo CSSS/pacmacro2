@@ -3,10 +3,10 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
-	"encoding/json"
 )
 
 type Game struct {
@@ -45,7 +45,7 @@ func (g *Game) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// GET /api/game/map.json
 	if path == "map.json" {
 		g.ServeMap(w, r)
-	// /api/game/*
+		// /api/game/*
 	} else {
 		http.Error(w,
 			http.StatusText(http.StatusNotFound),

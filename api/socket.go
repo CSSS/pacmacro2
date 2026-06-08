@@ -3,11 +3,11 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	ws "github.com/gorilla/websocket"
 	"net/http"
 	"sync"
-	"encoding/json"
-	ws "github.com/gorilla/websocket"
 )
 
 type Conn struct {
@@ -128,9 +128,9 @@ func (s *Sockets) Move(conn_i int, coord Coordinate) {
 	conn.coord = coord
 
 	var msg Message
-	msg.Coord   = coord
+	msg.Coord = coord
 	msg.Command = CMD_MOVE
-	msg.Data    = conn.id
+	msg.Data = conn.id
 
 	msg_json, err := json.Marshal(msg)
 	if err != nil {
@@ -268,5 +268,5 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var coord Coordinate
 	coord.Latitude = 0.0
 	coord.Longitude = 0.0
-	s.Move(conn_i, coord);
+	s.Move(conn_i, coord)
 }

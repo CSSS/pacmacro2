@@ -3,12 +3,12 @@
 package api
 
 import (
-	"sync"
-	"net/http"
-	"fmt"
 	"encoding/json"
-	"strconv"
+	"fmt"
 	ws "github.com/gorilla/websocket"
+	"net/http"
+	"strconv"
+	"sync"
 )
 
 type Admin struct {
@@ -32,7 +32,7 @@ func (a *Admin) AuthorizePost(r *http.Request) bool {
 		return false
 	}
 
-	p    := a.players.Get(r.FormValue("id"))
+	p := a.players.Get(r.FormValue("id"))
 	pass := r.FormValue("pass")
 
 	return p != nil && p.Type == TypeAdmin && pass == adminPassword
@@ -45,13 +45,13 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// POST /api/admin/scale
 	if path == "scale" {
 		a.ServeScale(w, r)
-	// WS /api/admin/set
+		// WS /api/admin/set
 	} else if len(path) >= 4 && path[:3] == "set" {
 		a.ServeSet(w, r)
-	// POST /api/admin/bounds
+		// POST /api/admin/bounds
 	} else if len(path) >= 4 && path == "bounds" {
 		a.ServeBounds(w, r)
-	// POST /api/admin/update/<ID>
+		// POST /api/admin/update/<ID>
 	} else if len(path) >= 4 && path[:6] == "update" {
 		a.ServeUpdate(w, r)
 	} else {
@@ -112,7 +112,7 @@ func (a *Admin) ServeBounds(w http.ResponseWriter, r *http.Request) {
 
 	var (
 		_min, _max Coordinate
-		err      error
+		err        error
 	)
 
 	if err = json.Unmarshal([]byte(r.FormValue("min")), &_min); err == nil {
@@ -192,7 +192,7 @@ func (a *Admin) ServeSet(w http.ResponseWriter, r *http.Request) {
 		var parsed Message
 
 		if err = json.Unmarshal(msg, &parsed); err != nil {
-			fmt.Printf("Admin\tServeSet (/api/admin/set/):\tCouldn't parse message: %v;\n" +
+			fmt.Printf("Admin\tServeSet (/api/admin/set/):\tCouldn't parse message: %v;\n"+
 				"----BEGIN MESSAGE\n%s\n----END MESSAGE\n", err, string(msg))
 			continue
 		}
@@ -217,7 +217,8 @@ func (a *Admin) ServeSet(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if parsed.Command == "location" {
+		switch parsed.Command {
+		case "location":
 			if first {
 				min_c = parsed.Coord
 				max_c = parsed.Coord
@@ -233,17 +234,17 @@ func (a *Admin) ServeSet(w http.ResponseWriter, r *http.Request) {
 
 			fmt.Print("Admin\tServeSet (/api/admin/set/):\tReceived coordinates.\n")
 			conn.WriteMessage(ws.TextMessage, []byte("Received coordinates."))
-		} else if parsed.Command == "write" {
+		case "write":
 			a.game.Min = min_c
 			a.game.Max = max_c
 
 			msg := fmt.Sprintf("Min: %+v\nMax: %+v", a.game.Min, a.game.Max)
-			fmt.Printf("Admin\tServeSet (/api/admin/set/):\tUpdated game.Min and game.Max;\n" +
+			fmt.Printf("Admin\tServeSet (/api/admin/set/):\tUpdated game.Min and game.Max;\n"+
 				"----BEGIN SUMMARY\n%s\n----END SUMMARY\n", msg)
 
 			// let admin know the set min/max coordinates
 			conn.WriteMessage(ws.TextMessage, []byte(msg))
-		} else {
+		default:
 			fmt.Printf("Admin\tServeSet (/api/admin/set/):\tReceived strange command: %q; ignoring.\n", parsed.Command)
 		}
 	}

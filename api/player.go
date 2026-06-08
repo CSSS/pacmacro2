@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"sync"
 	"strconv"
+	"strings"
+	"sync"
 )
 
 // zero-value player: froshee, pacman, disconnected
@@ -16,10 +17,10 @@ type Player struct {
 	pass string // password
 
 	// public
-	Type   uint64     `json:"type"`
-	Name   string     `json:"name"` // alt.: description
-	Reps   uint64     `json:"reps"` // represents
-	Status uint64     `json:"status"`
+	Type   uint64 `json:"type"`
+	Name   string `json:"name"` // alt.: description
+	Reps   uint64 `json:"reps"` // represents
+	Status uint64 `json:"status"`
 }
 
 // attempts to log in the user with the provided password
@@ -109,15 +110,19 @@ func (p *Players) Get(ID string) *Player {
 // /api/player/*
 func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path[12:]
+	if r.Method == http.MethodOptions {
+		return
+	}
 
 	// GET /api/player/list.json
-	if path == "list.json" {
+	switch path {
+	case "list.json":
 		p.ServeList(w, r)
-	// POST /api/player/register
-	} else if path == "register" {
+		// POST /api/player/register
+	case "register":
 		p.ServeRegister(w, r)
-	// /api/player/*
-	} else {
+		// /api/player/*
+	default:
 		http.Error(w,
 			http.StatusText(http.StatusNotFound),
 			http.StatusNotFound)
@@ -129,20 +134,21 @@ func (p *Players) ServeList(w http.ResponseWriter, r *http.Request) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	ret := "[\n"
+	var ret strings.Builder
+	ret.WriteString("[\n")
 	i := 0
 
 	// get list of connected players
 	for ID, player := range p.players {
-		ret += player.Format(ID)
+		ret.WriteString(player.Format(ID))
 		if i++; i < len(p.players) {
-			ret += ","
+			ret.WriteString(",")
 		}
 	}
 
-	ret += "]"
+	ret.WriteString("]")
 
-	w.Write([]byte(ret))
+	w.Write([]byte(ret.String()))
 }
 
 // POST /api/player/register
@@ -171,7 +177,8 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if t == TypeAdmin {
+	switch t {
+	case TypeAdmin:
 		// registering as admin requires the admin password
 		if p.adminRegistered || pass != adminPassword {
 			http.Error(w,
@@ -184,11 +191,11 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		p.adminRegistered = true
 
 		ID = p.New(TypeAdmin, name, RepsNothing, StatusDisc, pass)
-	} else if t == TypeLeader {
+	case TypeLeader:
 		// register leader as a froshee watcher;
 		// remains invalid until admin changes type to leader.
 		ID = p.New(TypeFroshee, name, RepsNothing, StatusDisc, pass)
-	} else {
+	default:
 		// register froshee into the game
 		ID = p.New(TypeFroshee, name, RepsNothing, StatusDisc, pass)
 	}
