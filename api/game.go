@@ -24,7 +24,7 @@ type Game struct {
 func (g *Game) Init(players *Players) {
 	g.players = players
 
-	// hardcoded coordinate values for SFU UniverCity
+	// hardcoded  UniverCity coordinates
 	// (matches the map used in the HTML)
 	g.Min.Latitude = 49.27462710773634
 	g.Min.Longitude = -122.91628624024605

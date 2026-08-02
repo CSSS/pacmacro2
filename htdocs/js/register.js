@@ -22,7 +22,7 @@ window.onload = () => {
     let ID;
 
     try {
-      ID = await fetch("http://localhost:8000/api/player/register", {
+      ID = await fetch("/api/player/register", {
         method: "POST",
         body: form,
       });

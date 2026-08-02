@@ -58,7 +58,7 @@ window.onload = async () => {
     );
 
     // render each player
-    Object.keys(window.pacmacro_players).forEach((ID, i) => {
+    Object.keys(window.pacmacro_players).forEach((ID) => {
       console.log("---- DRAWING ----");
 
       const p = window.pacmacro_players[ID];
@@ -106,6 +106,8 @@ window.onload = async () => {
 
       if (ID == window.pacmacro_ID) {
         text = `${p.player.name} (You)`;
+        document.getElementById("coords").innerHTML =
+          `${p.plot.x}, ${p.plot.y}`;
       } else {
         text = `${p.player.name} (${ID})`;
       }
@@ -130,6 +132,8 @@ window.onload = async () => {
         longitude: p.coords.longitude,
       };
 
+      document.getElementById("latlong").innerHTML =
+        `${coordinate.latitude}, ${coordinate.longitude}`;
       window.pacmacro_ws.send(JSON.stringify(coordinate));
     });
 

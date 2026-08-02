@@ -56,10 +56,12 @@ func main() {
 	http.Handle("/api/game/", corsMiddleware(&game))      // /api/game/map.json
 	http.Handle("/api/ws/", corsMiddleware(&sock))        // /api/ws/<ID>
 
+	port := ":49152"
+
 	// print to terminal that server started
-	fmt.Printf("Started PacMacro; listening on localhost:8000...\n")
+	fmt.Printf("Started PacMacro; listening on localhost%s...\n", port)
 
 	// note: PacMacro API is served on port 8000 by default.
 	// this should be proxied inside the web server used.
-	log.Fatal(http.ListenAndServe(":8000", nil))
+	log.Fatal(http.ListenAndServe(port, nil))
 }

@@ -1,8 +1,8 @@
 // pacmacro.js
 // general programming for all pages
 
-const WS = "ws"; // change to "wss" in production
-const URL_ROOT = "localhost:8000"; // must be root domain of server hosting API
+const WS = window.location.protocol === "https:" ? "wss" : "ws"; // change to "wss" in production
+const URL_ROOT = "localhost:49152"; // must be root domain of server hosting API
 const EXPAND_X = 32;
 const EXPAND_Y = 32;
 
@@ -16,23 +16,23 @@ const EXPAND_Y = 32;
 
 function ribbons() {
   document.body.innerHTML = `
-		<header>
-			<!-- thumbnails -->
-			<img onload="this.remove()" class="top-grid" src="static/flag_grid_t.png" alt="(grid)">
-			<img onload="this.remove()" class="bottom-grid" src="static/flag_grid_t.png" alt="(grid)">
+    <header>
+      <!-- thumbnails -->
+      <img onload="this.remove()" class="top-grid" src="static/flag_grid_t.png" alt="(grid)">
+      <img onload="this.remove()" class="bottom-grid" src="static/flag_grid_t.png" alt="(grid)">
 
-			<img class="top-grid" src="static/flag_grid.png" alt="">
-			<img class="bottom-grid" src="static/flag_grid.png" alt="">
+      <img class="top-grid" src="static/flag_grid.png" alt="">
+      <img class="bottom-grid" src="static/flag_grid.png" alt="">
 
-			<img class="pacmacro-logo" src="static/pacmacro.svg" alt="PacMacro">
-		</header>
-		<!--
-		<footer>
-			<img class="frosh-logo" src="static/frosh.png" alt="CSSS RETRO FROSH 2023">
-		</footer>
-		-->
-		${document.body.innerHTML}
-	`;
+      <img class="pacmacro-logo" src="static/pacmacro.svg" alt="PacMacro">
+    </header>
+    <!--
+    <footer>
+      <img class="frosh-logo" src="static/frosh.png" alt="CSSS RETRO FROSH 2023">
+    </footer>
+    -->
+    ${document.body.innerHTML}
+  `;
 }
 
 // init pacmacro
@@ -156,8 +156,8 @@ function convertCoords(map, lat, lon) {
   return plot;
 }
 
-var NREPS = 5;
-var NTYPE = 4;
+const NREPS = 5;
+const NTYPE = 4;
 
 function reps(n) {
   switch (n) {

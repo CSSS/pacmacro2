@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -109,13 +110,13 @@ func (p *Players) Get(ID string) *Player {
 
 // /api/player/*
 func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[12:]
 	if r.Method == http.MethodOptions {
 		return
 	}
 
+	base := path.Base(r.URL.Path)
 	// GET /api/player/list.json
-	switch path {
+	switch base {
 	case "list.json":
 		p.ServeList(w, r)
 		// POST /api/player/register

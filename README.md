@@ -10,13 +10,17 @@ This API is interacted with and accessed through a simple and static **JavaScrip
 
 ## Deployment
 
-For the deployment of PacMacro, the static files can be served wherever (e.g., GitHub Pages, or with the API), so long as the api calls are properly called.
+1. Create a `pacmacro.service` file and place it in `/etc/systemd/system/`
+2. Start the service
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now pacmacro
+```
 
-### Example: Nginx on a Debian server
-
-(To be written.)
 
 ## Building
+
+Install the GoLang toolchain and run `go build -o pacmacro`.
 
 ### API
 
