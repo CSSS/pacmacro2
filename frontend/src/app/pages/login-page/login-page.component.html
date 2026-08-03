@@ -1,0 +1,22 @@
+<pac-brand-header />
+
+<main class="auth-page">
+  <form class="auth-card" (submit)="submit($event)">
+    <h1>Login</h1>
+    <hr />
+    <label for="login-id">Player ID</label>
+    <input
+      id="login-id"
+      name="id"
+      type="text"
+      autocomplete="username"
+      maxlength="4"
+      required
+      [value]="playerId()"
+      (input)="playerId.set($any($event.target).value)"
+    />
+    <button type="submit">Submit</button>
+    <p>Don't have an account? <a routerLink="/register">Register</a></p>
+    <p class="form-status" role="status">{{ status() }}</p>
+  </form>
+</main>

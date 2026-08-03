@@ -1,0 +1,38 @@
+:host {
+  display: block;
+}
+
+.brand-header {
+  position: relative;
+  height: 10rem;
+  overflow: hidden;
+  background: #000;
+}
+
+.brand-header__grid {
+  position: absolute;
+  left: 50%;
+  z-index: 1;
+  height: 33%;
+  transform: translateX(-50%);
+}
+
+.brand-header__grid--top {
+  top: 0;
+}
+
+.brand-header__grid--bottom {
+  bottom: 0;
+  transform: translateX(-50%) rotate(180deg);
+}
+
+.brand-header__logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: min(20rem, 75vw);
+  height: 4rem;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 0.5rem #f30180);
+}

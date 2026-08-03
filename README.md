@@ -5,8 +5,7 @@ Originally forked from [https://github.com/micahdbak/pacmacro](https://github.co
 
 ## Structure
 
-This version of PacMacro consists of a **Go API** that is accessed under a `api/` directory, with the syntax `/api/(function)/(optional: inputs)`.
-This API is interacted with and accessed through a simple and static **JavaScript frontend**.
+This version of PacMacro consists of a **Go API** accessed under `/api` and two frontend implementations. `htdocs` contains the legacy JavaScript frontend; `frontend` contains the Angular 22 static-site replacement.
 
 ## Deployment
 
@@ -29,4 +28,13 @@ Start the API in a detachable terminal (e.g., `tmux`), and ensure that it is pro
 
 ### Frontend
 
-To build the PacMacro frontend, simply copy all files and directories under `htdocs` to wherever documents are served to the internet.
+Use Node 26.5.1, then build the Angular frontend:
+
+```sh
+cd frontend
+npm ci
+npm test -- --watch=false
+npm run build
+```
+
+Serve `frontend/dist/frontend/browser` as the site's document root. See [`frontend/README.md`](frontend/README.md) for development and Nginx configuration.

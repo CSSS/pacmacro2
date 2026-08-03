@@ -1,0 +1,79 @@
+<main class="admin-page">
+  <header>
+    <p class="eyebrow">PacMacro control panel</p>
+    <h1>Admin</h1>
+  </header>
+
+  <section class="admin-card admin-credentials" aria-labelledby="credentials-heading">
+    <h2 id="credentials-heading">Credentials</h2>
+    <label for="admin-id">Admin ID</label>
+    <input
+      id="admin-id"
+      name="admin-id"
+      type="text"
+      autocomplete="username"
+      [ngModel]="adminId()"
+      (ngModelChange)="adminId.set($event)"
+    />
+    <label for="admin-password">Admin password</label>
+    <input
+      id="admin-password"
+      name="admin-password"
+      type="password"
+      autocomplete="current-password"
+      [ngModel]="adminPassword()"
+      (ngModelChange)="adminPassword.set($event)"
+    />
+  </section>
+
+  <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
+
+  <section class="admin-actions" aria-label="Bulk player actions">
+    <button type="button" (click)="makeGhostsEdible()">Make Ghosts Edible</button>
+    <button type="button" (click)="makeAllNothing()">Make All Nothing</button>
+    <button type="button" class="button-secondary" [disabled]="loading()" (click)="loadPlayers()">
+      {{ loading() ? 'Loading…' : 'Load Players' }}
+    </button>
+  </section>
+
+  <section class="player-list" aria-label="Players">
+    @for (player of players(); track player.id) {
+      <article class="player-card" [class.player-card--hidden]="player.type === PlayerType.Hidden">
+        <div class="player-card__identity">
+          <strong>{{ player.name }}</strong>
+          <span>{{ player.id }}</span>
+        </div>
+
+        <label>
+          Type
+          <select
+            [ngModel]="player.type"
+            (ngModelChange)="setType(player.id, $event)"
+            [name]="'type-' + player.id"
+          >
+            @for (type of playerTypes; track type.value) {
+              <option [ngValue]="type.value">{{ type.label }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          Representation
+          <select
+            [ngModel]="player.reps"
+            (ngModelChange)="setRepresentation(player.id, $event)"
+            [name]="'reps-' + player.id"
+          >
+            @for (representation of representations; track representation.value) {
+              <option [ngValue]="representation.value">{{ representation.label }}</option>
+            }
+          </select>
+        </label>
+
+        <button type="button" (click)="updatePlayer(player)">Update {{ player.id }}</button>
+      </article>
+    } @empty {
+      <p class="player-list__empty">Load players to manage the current game.</p>
+    }
+  </section>
+</main>

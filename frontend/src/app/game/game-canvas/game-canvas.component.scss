@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
+.game-canvas {
+  display: block;
+  width: min(100%, 40rem);
+  height: auto;
+  margin-inline: auto;
+  border: 0.25rem solid #777;
+  border-radius: 0.25rem;
+  background: #111;
+}

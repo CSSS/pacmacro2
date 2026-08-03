@@ -1,0 +1,35 @@
+.auth-page {
+  display: grid;
+  width: min(100% - 2rem, 32rem);
+  min-height: calc(100dvh - 10rem);
+  margin-inline: auto;
+  place-items: center;
+  padding-block: 2rem;
+}
+
+.auth-card {
+  display: grid;
+  width: 100%;
+  gap: 0.75rem;
+  padding: clamp(1.5rem, 6vw, 2rem);
+  border: 1px solid #808080;
+  border-radius: 0.25rem;
+  background: #f0f0f0;
+  color: #111;
+  box-shadow: 0 1rem 3rem rgb(243 1 128 / 18%);
+}
+
+.auth-card hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid #aaa;
+}
+
+.auth-card button {
+  margin-top: 0.5rem;
+}
+
+.form-status {
+  min-height: 1.25rem;
+  color: #9c0754;
+}

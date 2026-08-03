@@ -1,0 +1,38 @@
+<pac-brand-header />
+
+<main class="auth-page">
+  <form class="auth-card" (submit)="submit($event)">
+    <h1>Register</h1>
+    <p>Leaders: register as Leader and send the administrator your player ID.</p>
+    <hr />
+    <label for="register-type">Registration type</label>
+    <select
+      id="register-type"
+      name="type"
+      [value]="playerType()"
+      (change)="playerType.set(+$any($event.target).value)"
+    >
+      <option [value]="PlayerType.Froshee">Froshee</option>
+      <option [value]="PlayerType.Leader">Leader</option>
+      <option [value]="PlayerType.Admin">Admin</option>
+    </select>
+
+    <label for="register-name">What's your name?</label>
+    <input
+      id="register-name"
+      name="name"
+      type="text"
+      autocomplete="name"
+      maxlength="80"
+      required
+      [value]="name()"
+      (input)="name.set($any($event.target).value)"
+    />
+
+    <button type="submit" [disabled]="submitting()">
+      {{ submitting() ? 'Registering…' : 'Submit' }}
+    </button>
+    <p>Already have an account? <a routerLink="/login">Login</a></p>
+    <p class="form-status" role="status" aria-live="polite">{{ status() }}</p>
+  </form>
+</main>

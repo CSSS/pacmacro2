@@ -1,0 +1,50 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: #000;
+  color: #fff;
+}
+
+.game-page {
+  width: min(100% - 1.5rem, 48rem);
+  margin-inline: auto;
+  padding: 0.75rem 0 2rem;
+  text-align: center;
+}
+
+.game-page h1 {
+  min-height: 1.75rem;
+  font-size: clamp(1rem, 3vw, 1.25rem);
+  font-weight: 500;
+}
+
+.game-page__status {
+  min-height: 4.25rem;
+  margin-block: 0.5rem;
+  color: #ddd;
+  font-size: 0.85rem;
+}
+
+.game-page__status p,
+.game-page__wake-status {
+  margin: 0.15rem 0;
+}
+
+.game-page__wake-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+.game-page__wake-lock--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.game-page__wake-status {
+  margin-bottom: 0.75rem;
+  color: #aaa;
+  font-size: 0.75rem;
+}
