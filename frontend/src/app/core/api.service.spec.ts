@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 
 import { ApiService } from './api.service';
-import { PlayerType, Representation } from './game.models';
+import { PlayerType } from './game.models';
 
 describe('ApiService', () => {
   let api: ApiService;
@@ -29,25 +29,22 @@ describe('ApiService', () => {
     });
   });
 
-  it('submits the legacy registration fields', () => {
-    api.register(PlayerType.Leader, 'Ada', '1234').subscribe();
+  it('registers a player and reads the response', () => {
+    api.registerPlayer(PlayerType.Leader, 'Test').subscribe();
     const request = http.expectOne('/api/player/register');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body.get('type')).toBe('1');
-    expect(request.request.body.get('name')).toBe('Ada');
-    expect(request.request.body.get('pass')).toBe('1234');
-    request.flush('ABCD');
+    expect(request.request.body).toEqual({ type: 1, name: 'Test' });
+    expect(request.request.detectContentTypeHeader()).toBe('application/json');
+    request.flush({ id: 'ABCD' });
   });
 
-  it('encodes the target ID and submits admin update fields', () => {
-    api
-      .updatePlayer('A/B', 'ADMIN', 'secret', PlayerType.Hidden, Representation.Edible)
-      .subscribe();
-    const request = http.expectOne('/api/admin/update/A%2FB');
-    expect(request.request.body.get('id')).toBe('ADMIN');
-    expect(request.request.body.get('pass')).toBe('secret');
-    expect(request.request.body.get('type')).toBe('3');
-    expect(request.request.body.get('reps')).toBe('4');
-    request.flush('');
+  it('registers the admin separately and requests cookie credentials', () => {
+    api.registerAdmin('Test2', 'top-secret').subscribe();
+    const request = http.expectOne('/api/admin/register');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.body).toEqual({ name: 'Test2', pass: 'top-secret' });
+    expect(request.request.detectContentTypeHeader()).toBe('application/json');
+    request.flush(null, { status: 204, statusText: 'No Content' });
   });
 });

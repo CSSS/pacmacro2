@@ -5,9 +5,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	ws "github.com/gorilla/websocket"
 	"net/http"
 	"sync"
+
+	ws "github.com/gorilla/websocket"
 )
 
 type Conn struct {
@@ -165,7 +166,7 @@ func (s *Sockets) Connect(c *ws.Conn, id string) int {
 	conn_i := -1
 
 	// iterate over active connections
-	for i, _ := range s.conn {
+	for i := range s.conn {
 		if s.conn[i] == nil {
 			s.conn[i] = conn
 			conn_i = i
@@ -192,8 +193,7 @@ func (s *Sockets) Disconnect(conn_i int) {
 // WS /api/ws/<ID>
 func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ID := r.URL.Path[8:]
-	player := s.players.Get(ID)
-	if player == nil {
+	if s.players.Get(ID) == nil {
 		http.Error(w,
 			http.StatusText(http.StatusBadRequest),
 			http.StatusBadRequest)
@@ -209,13 +209,6 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-
-	// attempt to log in
-	msgType, msg, err := conn.ReadMessage()
-	if err != nil || msgType != ws.TextMessage || !player.Login(string(msg)) {
-		//fmt.Printf("Sockets\tServeHTTP (/api/ws/):\tID %q: Bad password.\n", ID)
-		return
-	}
 
 	// add connection
 	conn_i := s.Connect(conn, ID)

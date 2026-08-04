@@ -1,6 +1,7 @@
 # PacMacro Angular frontend
 
-This is the Angular 22 replacement for the legacy frontend in `../htdocs`. It prerenders the game, login, registration, and admin routes as static HTML and connects to the existing Go API in the browser.
+This is the Angular 22 replacement for the legacy frontend.
+It prerenders the game, registration, and admin routes as static HTML and connects to the existing Go API in the browser.
 
 ## Requirements
 
@@ -24,7 +25,7 @@ npm test -- --watch=false
 npm run build
 ```
 
-The production command prerenders `/`, `/login`, `/register`, and `/admin`. Deploy the static files from `dist/frontend/browser`; no Node process is required in production.
+The production command prerenders `/`, `/register`, and `/admin`. Deploy the static files from `dist/frontend/browser`; no Node process is required in production.
 
 ## Nginx deployment
 
@@ -52,6 +53,16 @@ server {
 ```
 
 The frontend derives API and WebSocket addresses from the current hostname, so no production URL substitution is needed.
+Player sessions use only the ID returned by registration; the browser stores that ID and reconnects the game WebSocket with it.
+
+## Administrator authentication
+
+Select **Admin** on the registration page and enter the password configured as `ADMIN_PASSWORD` on the Go backend.
+The backend verifies it once and returns a session-scoped HttpOnly cookie.
+The Angular application cannot read the cookie; the browser sends it automatically to `/api/admin` requests.
+
+The administrator is maintained separately from players, receives no player ID, and does not appear on the game map or player list.
+The Nginx `X-Forwarded-Proto` header shown above allows the backend to mark the cookie `Secure` when the public request uses HTTPS.
 
 ## Project conventions
 

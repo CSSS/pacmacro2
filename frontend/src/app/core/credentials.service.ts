@@ -1,10 +1,8 @@
 import { DOCUMENT } from '@angular/common';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
 import { Credentials } from './game.models';
-
-export const DEFAULT_PLAYER_PASSWORD = '1234';
 
 export function readCookie(cookieHeader: string, name: string): string {
   const prefix = `${name}=`;
@@ -25,19 +23,18 @@ export function readCookie(cookieHeader: string, name: string): string {
   }
 }
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class CredentialsService {
   private readonly document = inject(DOCUMENT);
   private readonly browserWindow = inject(PAC_WINDOW);
 
   get(): Credentials {
     if (!this.browserWindow) {
-      return { id: '', password: DEFAULT_PLAYER_PASSWORD };
+      return { id: '' };
     }
 
     return {
       id: readCookie(this.document.cookie, 'id'),
-      password: readCookie(this.document.cookie, 'password') || DEFAULT_PLAYER_PASSWORD,
     };
   }
 
@@ -49,6 +46,5 @@ export class CredentialsService {
     const secure = this.browserWindow.location.protocol === 'https:' ? '; Secure' : '';
     const attributes = `; Path=/; SameSite=Lax${secure}`;
     this.document.cookie = `id=${encodeURIComponent(credentials.id)}${attributes}`;
-    this.document.cookie = `password=${encodeURIComponent(credentials.password)}${attributes}`;
   }
 }

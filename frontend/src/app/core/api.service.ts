@@ -1,10 +1,16 @@
 import { HttpClient } from '@angular/common/http';
-import { inject, Injectable } from '@angular/core';
+import { inject, Service } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { MapInfo, Player, PlayerType, Representation } from './game.models';
+import {
+  MapInfo,
+  Player,
+  PlayerRegistrationResponse,
+  PlayerType,
+  Representation,
+} from './game.models';
 
-@Injectable({ providedIn: 'root' })
+@Service()
 export class ApiService {
   private readonly http = inject(HttpClient);
 
@@ -12,32 +18,32 @@ export class ApiService {
     return this.http.get<MapInfo>('/api/game/map.json');
   }
 
-  register(type: PlayerType, name: string, password: string): Observable<string> {
-    const body = new FormData();
-    body.set('type', String(type));
-    body.set('name', name);
-    body.set('pass', password);
-    return this.http.post('/api/player/register', body, { responseType: 'text' });
+  registerPlayer(type: PlayerType, name: string): Observable<PlayerRegistrationResponse> {
+    return this.http.post<PlayerRegistrationResponse>('/api/player/register', {
+      type,
+      name,
+    });
+  }
+
+  registerAdmin(name: string, password: string): Observable<void> {
+    return this.http.post<void>(
+      '/api/admin/register',
+      { name, pass: password },
+      { withCredentials: true },
+    );
   }
 
   getPlayers(): Observable<Player[]> {
     return this.http.get<Player[]>('/api/player/list.json');
   }
 
-  updatePlayer(
-    playerId: string,
-    adminId: string,
-    adminPassword: string,
-    type: PlayerType,
-    reps: Representation,
-  ): Observable<string> {
-    const body = new FormData();
-    body.set('id', adminId);
-    body.set('pass', adminPassword);
-    body.set('type', String(type));
-    body.set('reps', String(reps));
-    return this.http.post(`/api/admin/update/${encodeURIComponent(playerId)}`, body, {
-      responseType: 'text',
-    });
+  updatePlayer(playerId: string, type: PlayerType, reps: Representation): Observable<void> {
+    return this.http.post<void>(
+      `/api/admin/update/${encodeURIComponent(playerId)}`,
+      { type, reps },
+      {
+        withCredentials: true,
+      },
+    );
   }
 }

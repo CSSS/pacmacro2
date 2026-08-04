@@ -4,28 +4,6 @@
     <h1>Admin</h1>
   </header>
 
-  <section class="admin-card admin-credentials" aria-labelledby="credentials-heading">
-    <h2 id="credentials-heading">Credentials</h2>
-    <label for="admin-id">Admin ID</label>
-    <input
-      id="admin-id"
-      name="admin-id"
-      type="text"
-      autocomplete="username"
-      [ngModel]="adminId()"
-      (ngModelChange)="adminId.set($event)"
-    />
-    <label for="admin-password">Admin password</label>
-    <input
-      id="admin-password"
-      name="admin-password"
-      type="password"
-      autocomplete="current-password"
-      [ngModel]="adminPassword()"
-      (ngModelChange)="adminPassword.set($event)"
-    />
-  </section>
-
   <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
 
   <section class="admin-actions" aria-label="Bulk player actions">

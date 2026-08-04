@@ -1,4 +1,4 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Service, signal } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
 import { Coordinate } from './game.models';
@@ -12,7 +12,7 @@ export function isAccurateEnough(
   return Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= maximum;
 }
 
-@Injectable()
+@Service({ autoProvided: false })
 export class GeolocationService {
   private readonly browserWindow = inject(PAC_WINDOW);
   private watchId: number | null = null;

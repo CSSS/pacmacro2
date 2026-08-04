@@ -1,15 +1,31 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import {
+  form,
+  FormField,
+  hidden,
+  maxLength,
+  pattern,
+  required,
+  submit as submitForm,
+} from '@angular/forms/signals';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
-import { CredentialsService, DEFAULT_PLAYER_PASSWORD } from '../../core/credentials.service';
+import { CredentialsService } from '../../core/credentials.service';
 import { PlayerType } from '../../core/game.models';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
 
+interface RegistrationModel {
+  playerType: string;
+  name: string;
+  adminPassword: string;
+}
+
 @Component({
   selector: 'pac-register-page',
-  imports: [BrandHeaderComponent, RouterLink],
+  imports: [BrandHeaderComponent, FormField],
   templateUrl: './register-page.component.html',
   styleUrl: './register-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,39 +35,70 @@ export class RegisterPageComponent {
   private readonly credentials = inject(CredentialsService);
   private readonly router = inject(Router);
 
-  protected readonly playerType = signal(PlayerType.Froshee);
-  protected readonly name = signal('');
+  protected readonly registrationModel = signal<RegistrationModel>({
+    playerType: String(PlayerType.Froshee),
+    name: '',
+    adminPassword: '',
+  });
+
+  protected readonly registrationForm = form(this.registrationModel, (registration) => {
+    required(registration.playerType);
+    required(registration.name, { message: 'Enter your name.' });
+    pattern(registration.name, /\S/, { message: 'Enter your name.' });
+    maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
+    hidden(registration.adminPassword, {
+      when: ({ valueOf }) => Number(valueOf(registration.playerType)) !== PlayerType.Admin,
+    });
+    required(registration.adminPassword, {
+      message: 'Enter the administrator password.',
+      when: ({ valueOf }) => Number(valueOf(registration.playerType)) === PlayerType.Admin,
+    });
+  });
+
   protected readonly status = signal('');
-  protected readonly submitting = signal(false);
-  protected readonly PlayerType = PlayerType;
+
+  /**
+   * For the player type dropdown.
+   */
+  protected readonly playerTypeOptions = PlayerType;
 
   protected async submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    if (this.submitting()) {
-      return;
-    }
+    await submitForm(this.registrationForm, {
+      action: async () => this.register(),
+      onInvalid: () => {
+        const firstError = this.registrationForm().errorSummary()[0];
+        this.status.set(firstError?.message ?? 'Check the registration details and try again.');
+      },
+    });
+  }
 
-    const name = this.name().trim();
-    if (!name) {
-      this.status.set('Enter your name.');
-      return;
-    }
+  private async register(): Promise<void> {
+    const { playerType, name, adminPassword } = this.registrationForm().value();
+    const registrationType = Number(playerType) as PlayerType;
+    const trimmedName = name.trim();
+    this.status.set('Registering...');
 
-    this.submitting.set(true);
-    this.status.set('Registering…');
     try {
-      const id = (
-        await firstValueFrom(this.api.register(this.playerType(), name, DEFAULT_PLAYER_PASSWORD))
-      ).trim();
+      if (registrationType === PlayerType.Admin) {
+        await firstValueFrom(this.api.registerAdmin(trimmedName, adminPassword));
+        await this.router.navigateByUrl('/admin');
+        return;
+      }
+
+      const response = await firstValueFrom(this.api.registerPlayer(registrationType, trimmedName));
+      const id = response.id.trim();
       if (!id) {
         throw new Error('The API returned an empty player ID.');
       }
-      this.credentials.save({ id, password: DEFAULT_PLAYER_PASSWORD });
+      this.credentials.save({ id });
       await this.router.navigateByUrl('/');
-    } catch {
-      this.status.set('Registration failed. Check your details and the API connection.');
-    } finally {
-      this.submitting.set(false);
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.status.set('The administrator password is incorrect.');
+      } else {
+        this.status.set('Registration failed. Check your details and the API connection.');
+      }
     }
   }
 }

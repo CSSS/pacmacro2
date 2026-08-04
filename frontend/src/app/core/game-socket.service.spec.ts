@@ -59,21 +59,21 @@ describe('GameSocketService', () => {
     Object.defineProperty(window, 'WebSocket', { configurable: true, value: originalWebSocket });
   });
 
-  it('uses the current origin and sends the password as the first frame', () => {
+  it('uses the current origin without sending an authentication frame', () => {
     let opened = false;
-    service.start('ABCD', '1234', () => (opened = true));
+    service.start('ABCD', () => (opened = true));
     const socket = MockWebSocket.instances[0];
 
     expect(socket.url).toBe(`ws://${window.location.host}/api/ws/ABCD`);
     socket.open();
 
-    expect(socket.sent).toEqual(['1234']);
+    expect(socket.sent).toEqual([]);
     expect(opened).toBe(true);
     expect(service.state()).toBe('connected');
   });
 
   it('accepts inform and move messages without unsafe rendering', () => {
-    service.start('ABCD', '1234', () => undefined);
+    service.start('ABCD', () => undefined);
     const socket = MockWebSocket.instances[0];
     socket.open();
     socket.message(
@@ -96,7 +96,7 @@ describe('GameSocketService', () => {
   });
 
   it('ignores malformed server frames', () => {
-    service.start('ABCD', '1234', () => undefined);
+    service.start('ABCD', () => undefined);
     const socket = MockWebSocket.instances[0];
     socket.open();
     socket.message('{not-json');

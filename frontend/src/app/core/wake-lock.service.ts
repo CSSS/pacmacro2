@@ -1,8 +1,8 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Service, signal } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
 
-@Injectable()
+@Service({ autoProvided: false })
 export class WakeLockService {
   private readonly browserWindow = inject(PAC_WINDOW);
   private sentinel: WakeLockSentinel | null = null;

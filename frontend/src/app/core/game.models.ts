@@ -50,13 +50,15 @@ export interface SocketMessage {
 
 export interface Credentials {
   id: string;
-  password: string;
+}
+
+export interface PlayerRegistrationResponse {
+  id: string;
 }
 
 export const PLAYER_TYPES: ReadonlyArray<{ value: PlayerType; label: string }> = [
   { value: PlayerType.Froshee, label: 'Froshee' },
   { value: PlayerType.Leader, label: 'Leader' },
-  { value: PlayerType.Admin, label: 'Admin' },
   { value: PlayerType.Hidden, label: 'Hidden' },
 ];
 

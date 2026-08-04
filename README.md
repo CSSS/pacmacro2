@@ -9,22 +9,33 @@ This version of PacMacro consists of a **Go API** accessed under `/api` and two 
 
 ## Deployment
 
-1. Create a `pacmacro.service` file and place it in `/etc/systemd/system/`
-2. Start the service
+The backend requires `ADMIN_PASSWORD`. For local development, add it to the ignored `.env` file in the repository root (see `.env.example`):
+
+```dotenv
+ADMIN_PASSWORD=replace-with-a-long-random-password
+```
+
+The binary loads `.env` from its working directory when present. For the production systemd service, put the same setting in `/etc/pacmacro/pacmacro.env` and retain this service setting:
+
+```systemd
+EnvironmentFile=/etc/pacmacro/pacmacro.env
+```
+
+Restrict that file to root and the deployment group because it contains the administrator secret. Then reload and start the service:
+
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl enable --now pacmacro
 ```
 
-
 ## Building
 
 Install the GoLang toolchain and run `go build -o pacmacro`.
 
-### API
+### Backend
 
-To build the PacMacro API, run `go build ./main.go` from the root directory of this repo.
-Start the API in a detachable terminal (e.g., `tmux`), and ensure that it is proxied properly.
+To build the PacMacro server, run `go build -o pacmacro .` from the root directory.
+The backend refuses to start when `ADMIN_PASSWORD` is missing.
 
 ### Frontend
 

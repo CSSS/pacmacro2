@@ -1,4 +1,4 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Service, signal } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
 import { Coordinate, LivePlayer, Player, SocketMessage } from './game.models';
@@ -9,13 +9,13 @@ const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000] as const;
 const WEB_SOCKET_OPEN = 1;
 const WEB_SOCKET_CLOSING = 2;
 
-@Injectable()
+@Service({ autoProvided: false })
 export class GameSocketService {
   private readonly browserWindow = inject(PAC_WINDOW);
   private socket: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private reconnectAttempt = 0;
-  private credentials: { id: string; password: string } | null = null;
+  private playerId: string | null = null;
   private active = false;
   private intentionallyClosed = false;
   private onConnected: (() => void) | null = null;
@@ -24,16 +24,16 @@ export class GameSocketService {
   readonly state = signal<SocketState>('idle');
   readonly status = signal('Not connected.');
 
-  start(id: string, password: string, onConnected: () => void): void {
+  start(id: string, onConnected: () => void): void {
     this.stop();
-    this.credentials = { id, password };
+    this.playerId = id;
     this.onConnected = onConnected;
     this.active = true;
     this.resume();
   }
 
   resume(): void {
-    if (!this.active || !this.credentials || !this.browserWindow) {
+    if (!this.active || !this.playerId || !this.browserWindow) {
       return;
     }
     if (this.browserWindow.navigator.onLine === false) {
@@ -85,7 +85,7 @@ export class GameSocketService {
   }
 
   private connect(): void {
-    if (!this.browserWindow || !this.credentials) {
+    if (!this.browserWindow || !this.playerId) {
       return;
     }
     if (this.socket && this.socket.readyState <= WEB_SOCKET_OPEN) {
@@ -97,7 +97,7 @@ export class GameSocketService {
     this.status.set(this.reconnectAttempt ? 'Reconnecting to the game…' : 'Joining PacMacro…');
 
     const protocol = this.browserWindow.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${this.browserWindow.location.host}/api/ws/${encodeURIComponent(this.credentials.id)}`;
+    const url = `${protocol}//${this.browserWindow.location.host}/api/ws/${encodeURIComponent(this.playerId)}`;
 
     let socket: WebSocket;
     try {
@@ -111,13 +111,12 @@ export class GameSocketService {
     this.socket = socket;
 
     socket.addEventListener('open', () => {
-      if (this.socket !== socket || !this.credentials) {
+      if (this.socket !== socket || !this.playerId) {
         return;
       }
       // A reconnect receives a fresh list of active players from the server.
       // Clear missed disconnects from a period where this page was sleeping.
       this.players.set({});
-      socket.send(this.credentials.password);
       this.reconnectAttempt = 0;
       this.state.set('connected');
       this.status.set('Connected.');

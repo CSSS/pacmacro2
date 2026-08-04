@@ -3,7 +3,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
@@ -47,21 +46,16 @@ func (g *Game) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.ServeMap(w, r)
 		// /api/game/*
 	} else {
-		http.Error(w,
-			http.StatusText(http.StatusNotFound),
-			http.StatusNotFound)
+		writeJSONError(w, http.StatusNotFound)
 	}
 }
 
 // GET /api/game/map.json
 func (g *Game) ServeMap(w http.ResponseWriter, r *http.Request) {
-	JSON, err := json.Marshal(g)
-	if err != nil {
-		http.Error(w,
-			http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
 		return
 	}
 
-	w.Write(JSON)
+	writeJSON(w, http.StatusOK, g)
 }

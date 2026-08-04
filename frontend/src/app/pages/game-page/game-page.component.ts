@@ -76,7 +76,7 @@ export class GamePageComponent {
     }
 
     const credentials = this.credentials.get();
-    if (!credentials.id || !credentials.password) {
+    if (!credentials.id) {
       await this.router.navigateByUrl('/register');
       return;
     }
@@ -96,7 +96,7 @@ export class GamePageComponent {
     this.browserWindow.document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.browserWindow.addEventListener('online', this.onOnline);
     this.browserWindow.addEventListener('offline', this.onOffline);
-    this.socket.start(credentials.id, credentials.password, () => {
+    this.socket.start(credentials.id, () => {
       this.pageStatus.set('Connected to PacMacro.');
       this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
     });

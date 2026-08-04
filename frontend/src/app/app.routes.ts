@@ -8,12 +8,6 @@ export const routes: Routes = [
       import('./pages/game-page/game-page.component').then((module) => module.GamePageComponent),
   },
   {
-    path: 'login',
-    title: 'Login | PacMacro',
-    loadComponent: () =>
-      import('./pages/login-page/login-page.component').then((module) => module.LoginPageComponent),
-  },
-  {
     path: 'register',
     title: 'Register | PacMacro',
     loadComponent: () =>
