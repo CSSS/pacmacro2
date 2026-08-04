@@ -21,10 +21,11 @@ type PlayerRegistrationResponse struct {
 }
 
 type PlayerResponse struct {
-	ID   string `json:"id"`
-	Type uint64 `json:"type"`
-	Name string `json:"name"`
-	Reps uint64 `json:"reps"`
+	ID     string `json:"id"`
+	Type   uint64 `json:"type"`
+	Name   string `json:"name"`
+	Reps   uint64 `json:"reps"`
+	Status uint64 `json:"status"`
 }
 
 // zero-value player: player, pacman, disconnected
@@ -36,18 +37,24 @@ type Player struct {
 }
 
 func (p *Player) Format(ID string) string {
-	JSON, _ := json.Marshal(PlayerResponse{
-		ID:   ID,
-		Type: p.Type,
-		Name: p.Name,
-		Reps: p.Reps,
-	})
+	JSON, _ := json.Marshal(newPlayerResponse(ID, p))
 	return string(JSON)
 }
 
+func newPlayerResponse(ID string, player *Player) PlayerResponse {
+	return PlayerResponse{
+		ID:     ID,
+		Type:   player.Type,
+		Name:   player.Name,
+		Reps:   player.Reps,
+		Status: player.Status,
+	}
+}
+
 type Players struct {
-	players map[string]*Player
-	mutex   sync.Mutex
+	players  map[string]*Player
+	mutex    sync.Mutex
+	observer func(PlayerResponse)
 }
 
 func (p *Players) Init() {
@@ -56,9 +63,18 @@ func (p *Players) Init() {
 	fmt.Print("Players handler initialized.\n")
 }
 
+func (p *Players) SetObserver(observer func(PlayerResponse)) {
+	p.observer = observer
+}
+
+func (p *Players) notify(response PlayerResponse) {
+	if p.observer != nil {
+		p.observer(response)
+	}
+}
+
 func (p *Players) New(t uint64, name string, reps uint64, status uint64) string {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
 
 	var ID string
 
@@ -85,6 +101,9 @@ func (p *Players) New(t uint64, name string, reps uint64, status uint64) string 
 	player.Name = name
 	player.Reps = reps
 	player.Status = status
+	response := newPlayerResponse(ID, player)
+	p.mutex.Unlock()
+	p.notify(response)
 
 	return ID
 }
@@ -98,10 +117,18 @@ func (p *Players) Delete(ID string) {
 
 func (p *Players) SetStatus(ID string, status uint64) {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	if player, found := p.players[ID]; found {
+	player, found := p.players[ID]
+	if found {
 		player.Status = status
+	}
+	var response PlayerResponse
+	if found {
+		response = newPlayerResponse(ID, player)
+	}
+	p.mutex.Unlock()
+
+	if found {
+		p.notify(response)
 	}
 }
 
@@ -114,6 +141,41 @@ func (p *Players) Get(ID string) *Player {
 	} else {
 		return nil
 	}
+}
+
+func (p *Players) List() []PlayerResponse {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	players := make([]PlayerResponse, 0, len(p.players))
+	for ID, player := range p.players {
+		players = append(players, newPlayerResponse(ID, player))
+	}
+	return players
+}
+
+func (p *Players) UpdateConnected(
+	ID string,
+	playerType uint64,
+	representation uint64,
+) (PlayerResponse, bool, bool) {
+	p.mutex.Lock()
+	player, found := p.players[ID]
+	if !found {
+		p.mutex.Unlock()
+		return PlayerResponse{}, false, false
+	}
+	if player.Status != StatusConn {
+		p.mutex.Unlock()
+		return PlayerResponse{}, true, false
+	}
+
+	player.Type = playerType
+	player.Reps = representation
+	response := newPlayerResponse(ID, player)
+	p.mutex.Unlock()
+	p.notify(response)
+	return response, true, true
 }
 
 // /api/player/*
@@ -143,20 +205,7 @@ func (p *Players) ServeList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	players := make([]PlayerResponse, 0, len(p.players))
-	for ID, player := range p.players {
-		players = append(players, PlayerResponse{
-			ID:   ID,
-			Type: player.Type,
-			Name: player.Name,
-			Reps: player.Reps,
-		})
-	}
-
-	writeJSON(w, http.StatusOK, players)
+	writeJSON(w, http.StatusOK, p.List())
 }
 
 // POST /api/player/register

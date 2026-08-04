@@ -4,22 +4,31 @@
     <h1>Admin</h1>
   </header>
 
+  <p class="admin-connection-status" role="status">{{ connectionStatus() }}</p>
   <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
 
   <section class="admin-actions" aria-label="Bulk player actions">
-    <button type="button" (click)="makeGhostsEdible()">Make Ghosts Edible</button>
-    <button type="button" (click)="makeAllNothing()">Make All Nothing</button>
-    <button type="button" class="button-secondary" [disabled]="loading()" (click)="loadPlayers()">
-      {{ loading() ? 'Loading…' : 'Load Players' }}
+    <button type="button" [disabled]="!hasConnectedPlayers()" (click)="makeGhostsEdible()">
+      Make Ghosts Edible
+    </button>
+    <button type="button" [disabled]="!hasConnectedPlayers()" (click)="makeAllNothing()">
+      Make All Nothing
     </button>
   </section>
 
   <section class="player-list" aria-label="Players">
     @for (player of players(); track player.id) {
-      <article class="player-card" [class.player-card--hidden]="player.type === PlayerType.Hidden">
+      <article
+        class="player-card"
+        [class.player-card--hidden]="player.type === PlayerType.Hidden"
+        [class.player-card--offline]="!isConnected(player)"
+      >
         <div class="player-card__identity">
           <strong>{{ player.name }}</strong>
           <span>{{ player.id }}</span>
+          <span class="player-card__status">
+            {{ isConnected(player) ? 'Connected' : 'Offline' }}
+          </span>
         </div>
 
         <label>
@@ -28,6 +37,7 @@
             [ngModel]="player.type"
             (ngModelChange)="setType(player.id, $event)"
             [name]="'type-' + player.id"
+            [disabled]="!isConnected(player)"
           >
             @for (type of playerTypes; track type.value) {
               <option [ngValue]="type.value">{{ type.label }}</option>
@@ -41,6 +51,7 @@
             [ngModel]="player.reps"
             (ngModelChange)="setRepresentation(player.id, $event)"
             [name]="'reps-' + player.id"
+            [disabled]="!isConnected(player)"
           >
             @for (representation of representations; track representation.value) {
               <option [ngValue]="representation.value">{{ representation.label }}</option>
@@ -48,10 +59,12 @@
           </select>
         </label>
 
-        <button type="button" (click)="updatePlayer(player)">Update {{ player.id }}</button>
+        <button type="button" [disabled]="!isConnected(player)" (click)="updatePlayer(player)">
+          Update {{ player.id }}
+        </button>
       </article>
     } @empty {
-      <p class="player-list__empty">Load players to manage the current game.</p>
+      <p class="player-list__empty">Players will appear here when they register.</p>
     }
   </section>
 </main>

@@ -29,6 +29,8 @@ func corsMiddleware(next http.Handler) http.Handler {
   ----------------------------------------
 * POST  /api/player/register   Register as a player and receive an ID.
 * POST  /api/admin/register    Register the administrator and set its session cookie.
+* POST  /api/admin/update/<ID> Update a connected player's type and representation.
+* WS    /api/admin/ws          Receive authenticated live player status updates.
 * GET   /api/player/list.json  List players.
 * GET   /api/game/map.json     Get map information; size and pellet location.
 * WS    /api/ws/<ID>           Connect to the server; expects coordinates to be

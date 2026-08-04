@@ -80,7 +80,7 @@ describe('GameSocketService', () => {
       JSON.stringify({
         coordinate: { latitude: 49.2, longitude: -123 },
         command: 'inform',
-        data: JSON.stringify({ id: 'ABCD', type: 0, name: '<b>Ada</b>', reps: 1 }),
+        data: JSON.stringify({ id: 'ABCD', type: 0, name: '<b>Test</b>', reps: 1, status: 2 }),
       }),
     );
     socket.message(
@@ -91,7 +91,7 @@ describe('GameSocketService', () => {
       }),
     );
 
-    expect(service.players()['ABCD'].player.name).toBe('<b>Ada</b>');
+    expect(service.players()['ABCD'].player.name).toBe('<b>Test</b>');
     expect(service.players()['ABCD'].coordinate.latitude).toBe(49.21);
   });
 

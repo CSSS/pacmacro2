@@ -238,6 +238,7 @@ function isPlayer(value: unknown): value is Player {
     typeof player.id === 'string' &&
     typeof player.name === 'string' &&
     Number.isInteger(player.type) &&
-    Number.isInteger(player.reps)
+    Number.isInteger(player.reps) &&
+    Number.isInteger(player.status)
   );
 }

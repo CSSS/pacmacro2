@@ -25,14 +25,16 @@ type AdminUpdateRequest struct {
 }
 
 type Admin struct {
-	players *Players
-	sockets *Sockets
+	players     *Players
+	sockets     *Sockets
+	connections map[adminSocketConnection]struct{}
 
 	password    string
 	cookieValue string
 	name        string
 	registered  bool
 	stateMutex  sync.RWMutex
+	socketMutex sync.Mutex
 }
 
 func (a *Admin) Init(players *Players, sockets *Sockets, password string) {
@@ -42,6 +44,8 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string) {
 	a.cookieValue = base64.RawURLEncoding.EncodeToString([]byte(password))
 	a.name = ""
 	a.registered = false
+	a.connections = make(map[adminSocketConnection]struct{})
+	players.SetObserver(a.BroadcastPlayer)
 
 	fmt.Print("Admin handler initialized.\n")
 }
@@ -91,6 +95,8 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case requestPath == "register":
 		a.ServeRegister(w, r)
+	case requestPath == "ws":
+		a.ServeSocket(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
 	default:
@@ -148,13 +154,6 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetID := strings.TrimPrefix(r.URL.Path, "/api/admin/update/")
-	player := a.players.Get(targetID)
-	if player == nil {
-		writeJSONError(w, http.StatusNotFound)
-		return
-	}
-
 	var request AdminUpdateRequest
 	if !decodeJSONBody(w, r, &request) {
 		return
@@ -172,14 +171,21 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.players.mutex.Lock()
-	player.Type = uint64(playerType)
-	player.Reps = uint64(representation)
-	a.players.mutex.Unlock()
-
-	if a.sockets.Find(targetID) != nil {
-		a.sockets.Inform(targetID)
+	targetID := strings.TrimPrefix(r.URL.Path, "/api/admin/update/")
+	_, found, connected := a.players.UpdateConnected(
+		targetID,
+		uint64(playerType),
+		uint64(representation),
+	)
+	if !found {
+		writeJSONError(w, http.StatusNotFound)
+		return
 	}
+	if !connected {
+		writeJSONError(w, http.StatusConflict)
+		return
+	}
+	a.sockets.Inform(targetID)
 
 	w.WriteHeader(http.StatusNoContent)
 }

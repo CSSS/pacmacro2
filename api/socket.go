@@ -179,6 +179,7 @@ func (s *Sockets) Connect(c *ws.Conn, id string) int {
 		conn_i = len(s.conn)
 		s.conn = append(s.conn, conn)
 	}
+	s.players.SetStatus(id, StatusConn)
 
 	return conn_i
 }
@@ -187,7 +188,17 @@ func (s *Sockets) Disconnect(conn_i int) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	connection := s.conn[conn_i]
+	if connection == nil {
+		return
+	}
 	s.conn[conn_i] = nil
+	for _, activeConnection := range s.conn {
+		if activeConnection != nil && activeConnection.id == connection.id {
+			return
+		}
+	}
+	s.players.SetStatus(connection.id, StatusDisc)
 }
 
 // WS /api/ws/<ID>
@@ -227,9 +238,6 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// let existing connections know about this player
 	s.Inform(ID)
-
-	s.players.SetStatus(ID, StatusConn)
-	defer s.players.SetStatus(ID, StatusDisc)
 
 	// hold connection open; receive location information
 	for {

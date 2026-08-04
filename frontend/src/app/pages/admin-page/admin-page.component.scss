@@ -20,9 +20,16 @@
   text-transform: uppercase;
 }
 
-.admin-status {
+.admin-status,
+.admin-connection-status {
   min-height: 1.5rem;
   font-weight: 600;
+}
+
+.admin-connection-status {
+  margin-bottom: 0;
+  color: #52525b;
+  font-size: 0.875rem;
 }
 
 .admin-actions {
@@ -30,11 +37,6 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-block: 1rem 1.5rem;
-}
-
-.button-secondary {
-  background: #fff;
-  color: #111;
 }
 
 .player-list {
@@ -57,6 +59,15 @@
   opacity: 0.5;
 }
 
+.player-card--offline .player-card__identity {
+  color: #8a8a91;
+  opacity: 0.7;
+}
+
+.player-card--offline .player-card__identity span {
+  color: #8a8a91;
+}
+
 .player-card__identity,
 .player-card label {
   display: grid;
@@ -67,6 +78,10 @@
 .player-card label {
   color: #666;
   font-size: 0.8rem;
+}
+
+.player-card__status {
+  font-weight: 700;
 }
 
 .player-list__empty {

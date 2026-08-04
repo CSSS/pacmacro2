@@ -30,12 +30,22 @@ export enum Representation {
   Edible = 4,
 }
 
+export enum PlayerStatus {
+  Gone = 0,
+  Disconnected = 1,
+  Connected = 2,
+}
+
 export interface Player {
   id: string;
   type: PlayerType;
   name: string;
   reps: Representation;
+  status: PlayerStatus;
 }
+
+export type AdminSocketMessage =
+  { event: 'snapshot'; players: Player[] } | { event: 'upsert'; player: Player };
 
 export interface LivePlayer {
   coordinate: Coordinate;

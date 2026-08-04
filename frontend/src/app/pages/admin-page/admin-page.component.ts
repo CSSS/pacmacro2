@@ -1,11 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  afterNextRender,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
+import { AdminSocketService } from '../../core/admin-socket.service';
 import { ApiService } from '../../core/api.service';
 import {
   PLAYER_TYPES,
   Player,
+  PlayerStatus,
   PlayerType,
   REPRESENTATIONS,
   Representation,
@@ -17,44 +26,52 @@ import {
   templateUrl: './admin-page.component.html',
   styleUrl: './admin-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [AdminSocketService],
 })
 export class AdminPageComponent {
   private readonly api = inject(ApiService);
+  private readonly adminSocket = inject(AdminSocketService);
 
-  protected readonly players = signal<Player[]>([]);
+  protected readonly players = this.adminSocket.players;
+  protected readonly connectionStatus = this.adminSocket.status;
   protected readonly status = signal('Admin authentication is supplied by a secure cookie.');
-  protected readonly loading = signal(false);
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly representations = REPRESENTATIONS;
   protected readonly PlayerType = PlayerType;
+  protected readonly hasConnectedPlayers = computed(() =>
+    this.players().some((player) => this.isConnected(player)),
+  );
 
-  protected async loadPlayers(): Promise<void> {
-    this.loading.set(true);
-    this.status.set('Loading players…');
-    try {
-      const players = await firstValueFrom(this.api.getPlayers());
-      this.players.set(players.map((player) => ({ ...player })));
-      this.status.set(`Loaded ${players.length} player${players.length === 1 ? '' : 's'}.`);
-    } catch {
-      this.status.set('Could not load players from the API.');
-    } finally {
-      this.loading.set(false);
-    }
+  constructor() {
+    afterNextRender(() => this.adminSocket.start());
+  }
+
+  protected isConnected(player: Player): boolean {
+    return player.status === PlayerStatus.Connected;
   }
 
   protected setType(playerId: string, type: PlayerType): void {
     this.players.update((players) =>
-      players.map((player) => (player.id === playerId ? { ...player, type } : player)),
+      players.map((player) =>
+        player.id === playerId && this.isConnected(player) ? { ...player, type } : player,
+      ),
     );
   }
 
   protected setRepresentation(playerId: string, reps: Representation): void {
     this.players.update((players) =>
-      players.map((player) => (player.id === playerId ? { ...player, reps } : player)),
+      players.map((player) =>
+        player.id === playerId && this.isConnected(player) ? { ...player, reps } : player,
+      ),
     );
   }
 
   protected async updatePlayer(player: Player): Promise<void> {
+    if (!this.isConnected(player)) {
+      this.status.set(`${player.name} (${player.id}) is offline and cannot be updated.`);
+      return;
+    }
+
     this.status.set(`Updating ${player.id}…`);
     try {
       await firstValueFrom(this.api.updatePlayer(player.id, player.type, player.reps));
@@ -83,15 +100,9 @@ export class AdminPageComponent {
     reps: Representation,
     description: string,
   ): Promise<void> {
-    let latestPlayers: Player[];
-    try {
-      latestPlayers = await firstValueFrom(this.api.getPlayers());
-    } catch {
-      this.status.set('Could not load the latest players before the bulk update.');
-      return;
-    }
-
-    const targets = latestPlayers.filter(predicate);
+    const targets = this.players().filter(
+      (player) => this.isConnected(player) && predicate(player),
+    );
     if (!targets.length) {
       this.status.set(`No players need updating to make ${description}.`);
       return;
@@ -107,6 +118,5 @@ export class AdminPageComponent {
         ? `Updated ${targets.length - failed} of ${targets.length} players; ${failed} failed. Register as admin again if the session expired.`
         : `Updated ${targets.length} players successfully.`,
     );
-    this.players.set([]);
   }
 }
