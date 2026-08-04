@@ -27,7 +27,7 @@ type PlayerResponse struct {
 	Reps uint64 `json:"reps"`
 }
 
-// zero-value player: froshee, pacman, disconnected
+// zero-value player: player, pacman, disconnected
 type Player struct {
 	Type   uint64 `json:"type"`
 	Name   string `json:"name"` // alt.: description
@@ -182,19 +182,19 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	name := request.Name
 	var ID string
 
-	if t < TypeFroshee || t > TypeLeader { // admins register separately
+	if t < TypePlayer || t > TypeLeader { // admins register separately
 		writeJSONError(w, http.StatusBadRequest)
 		return
 	}
 
 	switch t {
 	case TypeLeader:
-		// register leader as a froshee watcher;
+		// register leader as a player watcher;
 		// remains invalid until admin changes type to leader.
-		ID = p.New(TypeFroshee, name, RepsNothing, StatusDisc)
+		ID = p.New(TypePlayer, name, RepsNothing, StatusDisc)
 	default:
-		// register froshee into the game
-		ID = p.New(TypeFroshee, name, RepsNothing, StatusDisc)
+		// register player into the game
+		ID = p.New(TypePlayer, name, RepsNothing, StatusDisc)
 	}
 
 	player := p.Get(ID)

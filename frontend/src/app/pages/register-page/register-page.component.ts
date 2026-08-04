@@ -36,7 +36,7 @@ export class RegisterPageComponent {
   private readonly router = inject(Router);
 
   protected readonly registrationModel = signal<RegistrationModel>({
-    playerType: String(PlayerType.Froshee),
+    playerType: String(PlayerType.Player),
     name: '',
     adminPassword: '',
   });

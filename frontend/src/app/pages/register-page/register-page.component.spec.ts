@@ -49,14 +49,14 @@ describe('RegisterPageComponent', () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      playerType: String(PlayerType.Froshee),
-      name: 'Grace',
+      playerType: String(PlayerType.Player),
+      name: 'Test2',
       adminPassword: '',
     });
 
     await component.submit(submitEvent());
 
-    expect(api.registerPlayer).toHaveBeenCalledWith(PlayerType.Froshee, 'Grace');
+    expect(api.registerPlayer).toHaveBeenCalledWith(PlayerType.Player, 'Test2');
     expect(api.registerAdmin).not.toHaveBeenCalled();
     expect(credentials.save).toHaveBeenCalledWith({ id: 'ABCD' });
     expect(router.navigateByUrl).toHaveBeenCalledWith('/');

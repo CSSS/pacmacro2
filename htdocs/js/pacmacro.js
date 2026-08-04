@@ -179,7 +179,7 @@ function reps(n) {
 function type(n) {
   switch (n) {
     case 0:
-      return "Froshee";
+      return "Player";
     case 1:
       return "Leader";
     case 2:

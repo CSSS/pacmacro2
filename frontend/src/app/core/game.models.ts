@@ -16,7 +16,7 @@ export interface Plot {
 }
 
 export enum PlayerType {
-  Froshee = 0,
+  Player = 0,
   Leader = 1,
   Admin = 2,
   Hidden = 3,
@@ -57,7 +57,7 @@ export interface PlayerRegistrationResponse {
 }
 
 export const PLAYER_TYPES: ReadonlyArray<{ value: PlayerType; label: string }> = [
-  { value: PlayerType.Froshee, label: 'Froshee' },
+  { value: PlayerType.Player, label: 'Player' },
   { value: PlayerType.Leader, label: 'Leader' },
   { value: PlayerType.Hidden, label: 'Hidden' },
 ];

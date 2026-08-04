@@ -19,10 +19,10 @@ const (
 	CMD_INFORM = "inform" // inform another player change/connection
 
 	// user type
-	TypeFroshee = 0 // zero-value; froshee
-	TypeLeader  = 1
-	TypeAdmin   = 2
-	TypeHidden  = 3 // for /api/admin/update/<ID>
+	TypePlayer = 0 // zero-value; player
+	TypeLeader = 1
+	TypeAdmin  = 2
+	TypeHidden = 3 // for /api/admin/update/<ID>
 
 	// player represents
 	RepsNothing = 0 // zero-value; do not display on map
@@ -142,8 +142,8 @@ type Message struct {
 
 func TypeString(t uint64) string {
 	switch t {
-	case TypeFroshee:
-		return "Froshee"
+	case TypePlayer:
+		return "Player"
 	case TypeLeader:
 		return "Leader"
 	case TypeAdmin:

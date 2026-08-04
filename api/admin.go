@@ -166,7 +166,7 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 
 	playerType := *request.Type
 	representation := *request.Reps
-	validPlayerType := playerType == TypeFroshee || playerType == TypeLeader || playerType == TypeHidden
+	validPlayerType := playerType == TypePlayer || playerType == TypeLeader || playerType == TypeHidden
 	if !validPlayerType || representation < RepsNothing || representation > RepsEdible {
 		writeJSONError(w, http.StatusBadRequest)
 		return
