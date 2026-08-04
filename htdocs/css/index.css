@@ -1,25 +1,33 @@
 #self-summary {
-	position: fixed;
-	left: 50vw;
-	top: 168px;
-	transform: translateX(-50%);
-	font-size: 16pt;
-	font-weight: 400;
+  position: fixed;
+  left: 50vw;
+  top: 168px;
+  transform: translateX(-50%);
+  font-size: 16pt;
+  font-weight: 400;
 }
 #pacmacro-status {
-	position: fixed;
-	left: 50vw;
-	top: 192px;
-	transform: translateX(-50%);
-	font-size: 10pt;
-	font-weight: 400;
+  position: fixed;
+  left: 50vw;
+  top: 192px;
+  transform: translateX(-50%);
+  font-size: 10pt;
+  font-weight: 400;
 }
 #pacmacro-canvas {
-	z-index: 99;
-	position: fixed;
-	top: 240px;
-	left: 50%;
-	transform: translateX(-50%);
-	width: calc(min(480px, 100vw)); /* canvas should be stretched */
-	border: 4px solid gray;
+  z-index: 99;
+  position: fixed;
+  top: 240px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(min(480px, 100vw)); /* canvas should be stretched */
+  border: 4px solid gray;
+}
+#coords {
+  position: absolute;
+}
+
+#latlong {
+  position: absolute;
+  top: 2rem;
 }

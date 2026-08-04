@@ -1,0 +1,33 @@
+<pac-brand-header />
+
+<main class="game-page">
+  @if (selfSummary()) {
+    <h1>{{ selfSummary() }}</h1>
+  } @else {
+    <h1>PacMacro</h1>
+  }
+
+  <div class="game-page__status" role="status" aria-live="polite">
+    <p>{{ pageStatus() }}</p>
+    <p>{{ socket.status() }}</p>
+    <p>{{ geolocation.status() }}</p>
+  </div>
+
+  <label
+    class="game-page__wake-lock"
+    [class.game-page__wake-lock--disabled]="!wakeLock.supported()"
+  >
+    <input
+      type="checkbox"
+      [checked]="wakeLock.enabled()"
+      [disabled]="!wakeLock.supported()"
+      (change)="toggleWakeLock($event)"
+    />
+    Keep screen awake
+  </label>
+  <p class="game-page__wake-status">{{ wakeLock.status() }}</p>
+
+  @if (map(); as gameMap) {
+    <pac-game-canvas [map]="gameMap" [players]="socket.players()" [selfId]="selfId()" />
+  }
+</main>

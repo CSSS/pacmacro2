@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"encoding/json"
 )
 
 type Game struct {
@@ -24,7 +23,7 @@ type Game struct {
 func (g *Game) Init(players *Players) {
 	g.players = players
 
-	// hardcoded coordinate values for SFU UniverCity
+	// hardcoded  UniverCity coordinates
 	// (matches the map used in the HTML)
 	g.Min.Latitude = 49.27462710773634
 	g.Min.Longitude = -122.91628624024605
@@ -45,23 +44,18 @@ func (g *Game) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// GET /api/game/map.json
 	if path == "map.json" {
 		g.ServeMap(w, r)
-	// /api/game/*
+		// /api/game/*
 	} else {
-		http.Error(w,
-			http.StatusText(http.StatusNotFound),
-			http.StatusNotFound)
+		writeJSONError(w, http.StatusNotFound)
 	}
 }
 
 // GET /api/game/map.json
 func (g *Game) ServeMap(w http.ResponseWriter, r *http.Request) {
-	JSON, err := json.Marshal(g)
-	if err != nil {
-		http.Error(w,
-			http.StatusText(http.StatusInternalServerError),
-			http.StatusInternalServerError)
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
 		return
 	}
 
-	w.Write(JSON)
+	writeJSON(w, http.StatusOK, g)
 }

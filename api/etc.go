@@ -4,25 +4,25 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
+	"mime"
 	"net/http"
+
 	ws "github.com/gorilla/websocket"
 )
 
 const (
-	// general configuration
-	MaxPassLength = 8      // maximum password length
-	MaxAttempts   = 4      // max password attempts
-	adminPassword = "1234" // NOTE: change in production
-
 	// commands
-	CMD_MOVE        = "move"        // on player movement
-	CMD_INFORM      = "inform"      // inform another player change/connection
+	CMD_MOVE   = "move"   // on player movement
+	CMD_INFORM = "inform" // inform another player change/connection
 
 	// user type
-	TypeFroshee = 0 // zero-value; froshee
-	TypeLeader  = 1
-	TypeAdmin   = 2
-	TypeHidden  = 3 // for /api/admin/update/<ID>
+	TypePlayer = 0 // zero-value; player
+	TypeLeader = 1
+	TypeAdmin  = 2
+	TypeHidden = 3 // for /api/admin/update/<ID>
 
 	// player represents
 	RepsNothing = 0 // zero-value; do not display on map
@@ -36,10 +36,12 @@ const (
 	StatusDisc = 1 // user is disconnected; await re-connection
 	StatusConn = 2 // user is connected
 
-	id_length  = 4 // length of a session ID
+	id_length = 4 // length of a session ID
+
+	maxJSONBodySize = 8 * 1024
 )
 
-var id_letters = []rune("0123456789ABCDEF")
+var id_letters = []byte("0123456789ABCDEF")
 
 var Upgrader = ws.Upgrader{
 	ReadBufferSize:  1024,
@@ -51,6 +53,65 @@ var Upgrader = ws.Upgrader{
 		return true
 	},
 	// */
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func decodeJSONBody(w http.ResponseWriter, r *http.Request, destination any) bool {
+	return decodeJSONBodyWithOptions(w, r, destination, true)
+}
+
+func decodeJSONBodyAllowUnknownFields(w http.ResponseWriter, r *http.Request, destination any) bool {
+	return decodeJSONBodyWithOptions(w, r, destination, false)
+}
+
+func decodeJSONBodyWithOptions(
+	w http.ResponseWriter,
+	r *http.Request,
+	destination any,
+	rejectUnknownFields bool,
+) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		writeJSONError(w, http.StatusUnsupportedMediaType)
+		return false
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBodySize)
+	decoder := json.NewDecoder(r.Body)
+	if rejectUnknownFields {
+		decoder.DisallowUnknownFields()
+	}
+
+	if err := decoder.Decode(destination); err != nil {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			writeJSONError(w, http.StatusRequestEntityTooLarge)
+		} else {
+			writeJSONError(w, http.StatusBadRequest)
+		}
+		return false
+	}
+
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeJSONError(w, http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if value != nil {
+		_ = json.NewEncoder(w).Encode(value)
+	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int) {
+	writeJSON(w, status, errorResponse{Error: http.StatusText(status)})
 }
 
 // type Coordinate struct
@@ -81,8 +142,8 @@ type Message struct {
 
 func TypeString(t uint64) string {
 	switch t {
-	case TypeFroshee:
-		return "Froshee"
+	case TypePlayer:
+		return "Player"
 	case TypeLeader:
 		return "Leader"
 	case TypeAdmin:

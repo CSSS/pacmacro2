@@ -1,27 +1,51 @@
-# PacMacro 2023
+# PacMacro
 
-This repository holds the source code for the PacMacro event during CSSS Frosh Week 2023 ([RETRO FROSH](https://sfucsss.org/events/frosh/2023)).
+This repository holds the source code for the PacMacro event typically run during Frosh Week.
+Originally forked from [https://github.com/micahdbak/pacmacro](https://github.com/micahdbak/pacmacro)
 
 ## Structure
 
-This version of PacMacro consists of a **Go API** that is accessed under a `api/` directory, with the syntax `/api/(function)/(optional: inputs)`.
-This API is interacted with and accessed through a simple and static **JavaScript frontend**.
+This version of PacMacro consists of a **Go API** accessed under `/api` and two frontend implementations. `htdocs` contains the legacy JavaScript frontend; `frontend` contains the Angular 22 static-site replacement.
 
 ## Deployment
 
-For the deployment of PacMacro, the static files can be served wherever (e.g., GitHub Pages, or with the API), so long as the api calls are properly called.
+The backend requires `ADMIN_PASSWORD`. For local development, add it to the ignored `.env` file in the repository root (see `.env.example`):
 
-### Example: Nginx on a Debian server
+```dotenv
+ADMIN_PASSWORD=replace-with-a-long-random-password
+```
 
-(To be written.)
+The binary loads `.env` from its working directory when present. For the production systemd service, put the same setting in `/etc/pacmacro/pacmacro.env` and retain this service setting:
+
+```systemd
+EnvironmentFile=/etc/pacmacro/pacmacro.env
+```
+
+Restrict that file to root and the deployment group because it contains the administrator secret. Then reload and start the service:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now pacmacro
+```
 
 ## Building
 
-### API
+Install the GoLang toolchain and run `go build -o pacmacro`.
 
-To build the PacMacro API, run `go build ./main.go` from the root directory of this repo.
-Start the API in a detachable terminal (e.g., `tmux`), and ensure that it is proxied properly.
+### Backend
+
+To build the PacMacro server, run `go build -o pacmacro .` from the root directory.
+The backend refuses to start when `ADMIN_PASSWORD` is missing.
 
 ### Frontend
 
-To build the PacMacro frontend, simply copy all files and directories under `htdocs` to wherever documents are served to the internet.
+Use Node 26.5.1, then build the Angular frontend:
+
+```sh
+cd frontend
+npm ci
+npm test -- --watch=false
+npm run build
+```
+
+Serve `frontend/dist/frontend/browser` as the site's document root. See [`frontend/README.md`](frontend/README.md) for development and Nginx configuration.

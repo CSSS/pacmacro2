@@ -3,10 +3,11 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync"
-	"encoding/json"
+
 	ws "github.com/gorilla/websocket"
 )
 
@@ -128,9 +129,9 @@ func (s *Sockets) Move(conn_i int, coord Coordinate) {
 	conn.coord = coord
 
 	var msg Message
-	msg.Coord   = coord
+	msg.Coord = coord
 	msg.Command = CMD_MOVE
-	msg.Data    = conn.id
+	msg.Data = conn.id
 
 	msg_json, err := json.Marshal(msg)
 	if err != nil {
@@ -165,7 +166,7 @@ func (s *Sockets) Connect(c *ws.Conn, id string) int {
 	conn_i := -1
 
 	// iterate over active connections
-	for i, _ := range s.conn {
+	for i := range s.conn {
 		if s.conn[i] == nil {
 			s.conn[i] = conn
 			conn_i = i
@@ -178,6 +179,7 @@ func (s *Sockets) Connect(c *ws.Conn, id string) int {
 		conn_i = len(s.conn)
 		s.conn = append(s.conn, conn)
 	}
+	s.players.SetStatus(id, StatusConn)
 
 	return conn_i
 }
@@ -186,14 +188,23 @@ func (s *Sockets) Disconnect(conn_i int) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	connection := s.conn[conn_i]
+	if connection == nil {
+		return
+	}
 	s.conn[conn_i] = nil
+	for _, activeConnection := range s.conn {
+		if activeConnection != nil && activeConnection.id == connection.id {
+			return
+		}
+	}
+	s.players.SetStatus(connection.id, StatusDisc)
 }
 
 // WS /api/ws/<ID>
 func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ID := r.URL.Path[8:]
-	player := s.players.Get(ID)
-	if player == nil {
+	if s.players.Get(ID) == nil {
 		http.Error(w,
 			http.StatusText(http.StatusBadRequest),
 			http.StatusBadRequest)
@@ -209,13 +220,6 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-
-	// attempt to log in
-	msgType, msg, err := conn.ReadMessage()
-	if err != nil || msgType != ws.TextMessage || !player.Login(string(msg)) {
-		//fmt.Printf("Sockets\tServeHTTP (/api/ws/):\tID %q: Bad password.\n", ID)
-		return
-	}
 
 	// add connection
 	conn_i := s.Connect(conn, ID)
@@ -234,9 +238,6 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// let existing connections know about this player
 	s.Inform(ID)
-
-	s.players.SetStatus(ID, StatusConn)
-	defer s.players.SetStatus(ID, StatusDisc)
 
 	// hold connection open; receive location information
 	for {
@@ -268,5 +269,5 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var coord Coordinate
 	coord.Latitude = 0.0
 	coord.Longitude = 0.0
-	s.Move(conn_i, coord);
+	s.Move(conn_i, coord)
 }

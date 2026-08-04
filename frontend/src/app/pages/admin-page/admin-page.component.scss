@@ -1,0 +1,103 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  background: #f5f5f7;
+  color: #111;
+}
+
+.admin-page {
+  width: min(100% - 2rem, 70rem);
+  margin-inline: auto;
+  padding-block: 2rem 4rem;
+}
+
+.eyebrow {
+  margin-bottom: 0.25rem;
+  color: #7d164e;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-status,
+.admin-connection-status {
+  min-height: 1.5rem;
+  font-weight: 600;
+}
+
+.admin-connection-status {
+  margin-bottom: 0;
+  color: #52525b;
+  font-size: 0.875rem;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1rem 1.5rem;
+}
+
+.button-secondary {
+  background: #fff;
+  color: #111;
+}
+
+.player-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.player-card {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) repeat(2, minmax(8rem, 0.7fr)) auto;
+  gap: 1rem;
+  align-items: end;
+  padding: 1rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.player-card--hidden {
+  opacity: 0.5;
+}
+
+.player-card--offline .player-card__identity {
+  color: #8a8a91;
+  opacity: 0.7;
+}
+
+.player-card--offline .player-card__identity span {
+  color: #8a8a91;
+}
+
+.player-card__identity,
+.player-card label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.player-card__identity span,
+.player-card label {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.player-card__status {
+  font-weight: 700;
+}
+
+.player-list__empty {
+  padding: 2rem;
+  border: 1px dashed #aaa;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+@media (max-width: 48rem) {
+  .player-card {
+    grid-template-columns: 1fr;
+  }
+}
