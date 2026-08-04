@@ -47,4 +47,12 @@ describe('ApiService', () => {
     expect(request.request.detectContentTypeHeader()).toBe('application/json');
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
+
+  it('fetches the current player list', () => {
+    api.getPlayers().subscribe();
+    const request = http.expectOne('/api/player/list.json');
+
+    expect(request.request.method).toBe('GET');
+    request.flush([]);
+  });
 });

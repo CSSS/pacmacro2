@@ -30,11 +30,39 @@ describe('AdminPageComponent', () => {
     start: vi.fn(),
   };
   const api = {
+    getPlayers: vi.fn(() =>
+      of([
+        {
+          id: 'CCCC',
+          type: PlayerType.Leader,
+          name: 'Current player',
+          reps: Representation.Ghost,
+          status: PlayerStatus.Connected,
+        },
+      ]),
+    ),
     updatePlayer: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
     adminSocket.start.mockClear();
+    adminSocket.players.set([
+      {
+        id: 'AAAA',
+        type: PlayerType.Player,
+        name: 'Ada',
+        reps: Representation.Pacman,
+        status: PlayerStatus.Connected,
+      },
+      {
+        id: 'BBBB',
+        type: PlayerType.Player,
+        name: 'Ben',
+        reps: Representation.Nothing,
+        status: PlayerStatus.Disconnected,
+      },
+    ]);
+    api.getPlayers.mockClear();
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
       providers: [{ provide: ApiService, useValue: api }],
@@ -70,5 +98,17 @@ describe('AdminPageComponent', () => {
       'select, button',
     );
     expect([...connectedControls].every((control) => !control.disabled)).toBe(true);
+  });
+
+  it('can manually refresh the current player list', async () => {
+    const page = fixture.nativeElement as HTMLElement;
+    const refreshButton = page.querySelector<HTMLButtonElement>('.button-secondary');
+
+    refreshButton?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.getPlayers).toHaveBeenCalledOnce();
+    expect(page.querySelector('.player-card strong')?.textContent).toContain('Current player');
   });
 });

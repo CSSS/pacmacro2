@@ -14,6 +14,14 @@
     <button type="button" [disabled]="!hasConnectedPlayers()" (click)="makeAllNothing()">
       Make All Nothing
     </button>
+    <button
+      type="button"
+      class="button-secondary"
+      [disabled]="loadingPlayers()"
+      (click)="refreshPlayers()"
+    >
+      {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
+    </button>
   </section>
 
   <section class="player-list" aria-label="Players">

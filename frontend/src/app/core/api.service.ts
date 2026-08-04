@@ -2,7 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Service } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { MapInfo, PlayerRegistrationResponse, PlayerType, Representation } from './game.models';
+import {
+  MapInfo,
+  Player,
+  PlayerRegistrationResponse,
+  PlayerType,
+  Representation,
+} from './game.models';
 
 @Service()
 export class ApiService {
@@ -25,6 +31,10 @@ export class ApiService {
       { name, pass: password },
       { withCredentials: true },
     );
+  }
+
+  getPlayers(): Observable<Player[]> {
+    return this.http.get<Player[]>('/api/player/list.json');
   }
 
   updatePlayer(playerId: string, type: PlayerType, reps: Representation): Observable<void> {

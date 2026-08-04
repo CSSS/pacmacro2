@@ -35,6 +35,7 @@ export class AdminPageComponent {
   protected readonly players = this.adminSocket.players;
   protected readonly connectionStatus = this.adminSocket.status;
   protected readonly status = signal('Admin authentication is supplied by a secure cookie.');
+  protected readonly loadingPlayers = signal(false);
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly representations = REPRESENTATIONS;
   protected readonly PlayerType = PlayerType;
@@ -48,6 +49,20 @@ export class AdminPageComponent {
 
   protected isConnected(player: Player): boolean {
     return player.status === PlayerStatus.Connected;
+  }
+
+  protected async refreshPlayers(): Promise<void> {
+    this.loadingPlayers.set(true);
+    this.status.set('Fetching the current player list…');
+    try {
+      const players = await firstValueFrom(this.api.getPlayers());
+      this.players.set(players.map((player) => ({ ...player })));
+      this.status.set(`Fetched ${players.length} player${players.length === 1 ? '' : 's'}.`);
+    } catch {
+      this.status.set('Could not fetch the current player list.');
+    } finally {
+      this.loadingPlayers.set(false);
+    }
   }
 
   protected setType(playerId: string, type: PlayerType): void {

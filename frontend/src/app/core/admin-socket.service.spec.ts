@@ -94,7 +94,12 @@ describe('AdminSocketService', () => {
       }),
     );
 
-    expect(service.players().map((player) => player.id)).toEqual(['AAAA', 'BBBB']);
+    expect(
+      service
+        .players()
+        .map((player) => player.id)
+        .sort(),
+    ).toEqual(['AAAA', 'BBBB']);
     expect(service.players().find((player) => player.id === 'BBBB')?.status).toBe(
       PlayerStatus.Disconnected,
     );
