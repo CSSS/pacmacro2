@@ -8,10 +8,14 @@ import (
 )
 
 func TestMapUsesJSONObjectResponse(t *testing.T) {
+	setGameEnvironment(t)
+
 	players := new(Players)
 	players.Init()
 	game := new(Game)
-	game.Init(players)
+	if err := game.Init(players); err != nil {
+		t.Fatalf("initialize game: %v", err)
+	}
 	request := httptest.NewRequest(http.MethodGet, "/api/game/map.json", nil)
 	response := httptest.NewRecorder()
 	game.ServeHTTP(response, request)
@@ -28,6 +32,39 @@ func TestMapUsesJSONObjectResponse(t *testing.T) {
 		t.Fatalf("decode map response: %v", err)
 	}
 	if body.Width != game.Width || body.Height != game.Height || body.Min != game.Min || body.Max != game.Max {
-		t.Errorf("map response = %#v, want %#v", body, game)
+		t.Errorf(
+			"map response = min %#v, max %#v, width %d, height %d; want min %#v, max %#v, width %d, height %d",
+			body.Min,
+			body.Max,
+			body.Width,
+			body.Height,
+			game.Min,
+			game.Max,
+			game.Width,
+			game.Height,
+		)
 	}
+}
+
+func TestGameInitUsesEnvironmentBounds(t *testing.T) {
+	setGameEnvironment(t)
+
+	game := new(Game)
+	if err := game.Init(new(Players)); err != nil {
+		t.Fatalf("initialize game: %v", err)
+	}
+
+	wantMin := Coordinate{Latitude: 49.221927, Longitude: -123.007418}
+	wantMax := Coordinate{Latitude: 49.228999, Longitude: -122.997131}
+	if game.Min != wantMin || game.Max != wantMax {
+		t.Errorf("bounds = min %#v, max %#v; want min %#v, max %#v", game.Min, game.Max, wantMin, wantMax)
+	}
+}
+
+func setGameEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv("MIN_LAT", "49.27462710773634")
+	t.Setenv("MIN_LON", "-123.91628624024605")
+	t.Setenv("MAX_LAT", "49.28099313727333")
+	t.Setenv("MAX_LON", "-122.90273076431673")
 }

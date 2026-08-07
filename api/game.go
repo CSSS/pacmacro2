@@ -4,7 +4,11 @@ package api
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -20,26 +24,58 @@ type Game struct {
 	Height uint64     `json:"height"`
 }
 
-func (g *Game) Init(players *Players) {
-	g.players = players
+func (g *Game) Init(players *Players) error {
+	minLatitude, err := requiredEnvironmentFloat("MIN_LAT")
+	if err != nil {
+		return err
+	}
+	minLongitude, err := requiredEnvironmentFloat("MIN_LON")
+	if err != nil {
+		return err
+	}
+	maxLatitude, err := requiredEnvironmentFloat("MAX_LAT")
+	if err != nil {
+		return err
+	}
+	maxLongitude, err := requiredEnvironmentFloat("MAX_LON")
+	if err != nil {
+		return err
+	}
+	if minLatitude >= maxLatitude {
+		return fmt.Errorf("MIN_LAT must be less than MAX_LAT")
+	}
+	if minLongitude >= maxLongitude {
+		return fmt.Errorf("MIN_LON must be less than MAX_LON")
+	}
 
-	// hardcoded  UniverCity coordinates
-	// (matches the map used in the HTML)
-	g.Min.Latitude = 49.27462710773634
-	g.Min.Longitude = -122.91628624024605
-	g.Max.Latitude = 49.28099313727333
-	g.Max.Longitude = -122.90273076431673
+	g.players = players
+	g.Min = Coordinate{Latitude: minLatitude, Longitude: minLongitude}
+	g.Max = Coordinate{Latitude: maxLatitude, Longitude: maxLongitude}
 
 	// coordinate size of map
 	g.Width = 32
 	g.Height = 32
 
 	fmt.Print("Game handler initialized.\n")
+	return nil
+}
+
+func requiredEnvironmentFloat(name string) (float64, error) {
+	rawValue := strings.TrimSpace(os.Getenv(name))
+	if rawValue == "" {
+		return 0, fmt.Errorf("%s is required", name)
+	}
+
+	value, err := strconv.ParseFloat(rawValue, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("%s must be a finite number", name)
+	}
+	return value, nil
 }
 
 // /api/game/*
 func (g *Game) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[10:]
+	path := strings.TrimPrefix(r.URL.Path, "/api/game/")
 
 	// GET /api/game/map.json
 	if path == "map.json" {
