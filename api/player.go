@@ -11,21 +11,23 @@ import (
 	"sync"
 )
 
+type PlayerID string
+
 type PlayerRegistrationRequest struct {
 	Type *int   `json:"type"`
 	Name string `json:"name"`
 }
 
 type PlayerRegistrationResponse struct {
-	ID string `json:"id"`
+	ID PlayerID `json:"id"`
 }
 
 type PlayerResponse struct {
-	ID     string `json:"id"`
-	Type   uint64 `json:"type"`
-	Name   string `json:"name"`
-	Reps   uint64 `json:"reps"`
-	Status uint64 `json:"status"`
+	ID     PlayerID `json:"id"`
+	Type   uint64   `json:"type"`
+	Name   string   `json:"name"`
+	Reps   uint64   `json:"reps"`
+	Status uint64   `json:"status"`
 }
 
 // zero-value player: player, pacman, disconnected
@@ -36,12 +38,12 @@ type Player struct {
 	Status uint64 `json:"status"`
 }
 
-func (p *Player) Format(ID string) string {
+func (p *Player) Format(ID PlayerID) string {
 	JSON, _ := json.Marshal(newPlayerResponse(ID, p))
 	return string(JSON)
 }
 
-func newPlayerResponse(ID string, player *Player) PlayerResponse {
+func newPlayerResponse(ID PlayerID, player *Player) PlayerResponse {
 	return PlayerResponse{
 		ID:     ID,
 		Type:   player.Type,
@@ -52,13 +54,13 @@ func newPlayerResponse(ID string, player *Player) PlayerResponse {
 }
 
 type Players struct {
-	players  map[string]*Player
+	players  map[PlayerID]*Player
 	mutex    sync.Mutex
 	observer func(PlayerResponse)
 }
 
 func (p *Players) Init() {
-	p.players = make(map[string]*Player)
+	p.players = make(map[PlayerID]*Player)
 
 	fmt.Print("Players handler initialized.\n")
 }
@@ -73,10 +75,10 @@ func (p *Players) notify(response PlayerResponse) {
 	}
 }
 
-func (p *Players) New(t uint64, name string, reps uint64, status uint64) string {
+func (p *Players) New(t uint64, name string, reps uint64, status uint64) PlayerID {
 	p.mutex.Lock()
 
-	var ID string
+	var ID PlayerID
 
 	for {
 		// create random session ID
@@ -85,7 +87,7 @@ func (p *Players) New(t uint64, name string, reps uint64, status uint64) string 
 			ID_b[i] = id_letters[rand.Intn(len(id_letters))]
 		}
 
-		ID = string(ID_b)
+		ID = PlayerID(ID_b)
 
 		// break if this ID isn't in use
 		if _, found := p.players[ID]; !found {
@@ -108,14 +110,14 @@ func (p *Players) New(t uint64, name string, reps uint64, status uint64) string 
 	return ID
 }
 
-func (p *Players) Delete(ID string) {
+func (p *Players) Delete(ID PlayerID) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	delete(p.players, ID)
 }
 
-func (p *Players) SetStatus(ID string, status uint64) {
+func (p *Players) SetStatus(ID PlayerID, status uint64) {
 	p.mutex.Lock()
 	player, found := p.players[ID]
 	if found {
@@ -132,7 +134,7 @@ func (p *Players) SetStatus(ID string, status uint64) {
 	}
 }
 
-func (p *Players) Get(ID string) *Player {
+func (p *Players) Get(ID PlayerID) *Player {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -155,7 +157,7 @@ func (p *Players) List() []PlayerResponse {
 }
 
 func (p *Players) UpdateConnected(
-	ID string,
+	ID PlayerID,
 	playerType uint64,
 	representation uint64,
 ) (PlayerResponse, bool, bool) {
@@ -229,7 +231,7 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 
 	t := *request.Type
 	name := request.Name
-	var ID string
+	var ID PlayerID
 
 	if t < TypePlayer || t > TypeLeader { // admins register separately
 		writeJSONError(w, http.StatusBadRequest)

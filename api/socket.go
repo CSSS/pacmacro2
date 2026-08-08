@@ -15,6 +15,7 @@ type Conn struct {
 	c     *ws.Conn
 	coord Coordinate
 	id    string
+	coordinates map[PlayerID]Coordinate
 }
 
 type Sockets struct {
