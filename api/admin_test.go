@@ -7,8 +7,6 @@ import (
 	"testing"
 )
 
-const testUser = "test"
-
 type recordingAdminConnection struct {
 	messages [][]byte
 	closed   bool
@@ -41,7 +39,7 @@ func registerTestAdmin(t *testing.T, admin *Admin, password string) *http.Cookie
 		t,
 		http.MethodPost,
 		"/api/admin/register",
-		AdminRegistrationRequest{Name: testUser, Pass: password},
+		AdminRegistrationRequest{Pass: password},
 	)
 	request.Header.Set("X-Forwarded-Proto", "https")
 	response := httptest.NewRecorder()
@@ -87,7 +85,7 @@ func TestAdminRegistrationRejectsWrongPasswordAndAllowsSessionRenewal(t *testing
 		t,
 		http.MethodPost,
 		"/api/admin/register",
-		AdminRegistrationRequest{Name: testUser, Pass: "wrong"},
+		AdminRegistrationRequest{Pass: "wrong"},
 	)
 	wrongResponse := httptest.NewRecorder()
 	admin.ServeHTTP(wrongResponse, wrongRequest)
@@ -100,7 +98,7 @@ func TestAdminRegistrationRejectsWrongPasswordAndAllowsSessionRenewal(t *testing
 		t,
 		http.MethodPost,
 		"/api/admin/register",
-		AdminRegistrationRequest{Name: "Grace", Pass: "top-secret"},
+		AdminRegistrationRequest{Pass: "top-secret"},
 	)
 	renewalResponse := httptest.NewRecorder()
 	admin.ServeHTTP(renewalResponse, renewalRequest)

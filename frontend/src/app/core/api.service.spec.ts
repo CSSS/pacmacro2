@@ -40,11 +40,11 @@ describe('ApiService', () => {
   });
 
   it('registers the admin separately and requests cookie credentials', () => {
-    api.registerAdmin('Test2', 'top-secret').subscribe();
+    api.registerAdmin('top-secret').subscribe();
     const request = http.expectOne('/api/admin/register');
     expect(request.request.method).toBe('POST');
     expect(request.request.withCredentials).toBe(true);
-    expect(request.request.body).toEqual({ name: 'Test2', pass: 'top-secret' });
+    expect(request.request.body).toEqual({ pass: 'top-secret' });
     expect(request.request.detectContentTypeHeader()).toBe('application/json');
     request.flush(null, { status: 204, statusText: 'No Content' });
   });

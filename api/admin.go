@@ -15,7 +15,6 @@ import (
 const adminCookieName = "pacmacro_admin"
 
 type AdminRegistrationRequest struct {
-	Name string `json:"name"`
 	Pass string `json:"pass"`
 }
 
@@ -35,7 +34,6 @@ type Admin struct {
 
 	password    string
 	cookieValue string
-	name        string
 	registered  bool
 	stateMutex  sync.RWMutex
 	socketMutex sync.Mutex
@@ -46,7 +44,6 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string, games 
 	a.sockets = sockets
 	a.password = password
 	a.cookieValue = base64.RawURLEncoding.EncodeToString([]byte(password))
-	a.name = ""
 	a.registered = false
 	a.connections = make(map[adminSocketConnection]struct{})
 	if len(games) > 0 {
@@ -160,7 +157,6 @@ func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/admin/register
-// JSON "name": administrator display name
 // JSON "pass": administrator password from ADMIN_PASSWORD
 func (a *Admin) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -173,18 +169,12 @@ func (a *Admin) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name := strings.TrimSpace(request.Name)
-	if name == "" {
-		writeJSONError(w, http.StatusBadRequest)
-		return
-	}
 	if !credentialsMatch(request.Pass, a.password) {
 		writeJSONError(w, http.StatusUnauthorized)
 		return
 	}
 
 	a.stateMutex.Lock()
-	a.name = name
 	a.registered = true
 	a.stateMutex.Unlock()
 
@@ -198,7 +188,7 @@ func (a *Admin) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	})
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
-	fmt.Printf("Admin\tServeRegister (/api/admin/register):\tRegistered administrator %q.\n", name)
+	fmt.Print("Admin\tServeRegister (/api/admin/register):\tRegistered administrator.\n")
 }
 
 // POST /api/admin/update/<ID>
