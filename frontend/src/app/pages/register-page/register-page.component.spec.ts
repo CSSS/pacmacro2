@@ -87,6 +87,23 @@ describe('RegisterPageComponent', () => {
     expect(api.registerAdmin).not.toHaveBeenCalled();
     expect(api.registerPlayer).not.toHaveBeenCalled();
   });
+
+  it('shows name field for Player and password field for Admin', () => {
+    const component = TestBed.createComponent(RegisterPageComponent)
+      .componentInstance as unknown as RegisterPageHarness;
+    component.registrationModel.set({
+      registrationKind: RegistrationKind.Player,
+      name: 'Test',
+      adminPassword: '',
+    });
+
+    expect(component.registrationForm.name().hidden()).toBe(false);
+    expect(component.registrationForm.adminPassword().hidden()).toBe(true);
+
+    component.registrationForm.registrationKind().value.set(RegistrationKind.Admin);
+    expect(component.registrationForm.name().hidden()).toBe(true);
+    expect(component.registrationForm.adminPassword().hidden()).toBe(false);
+  });
 });
 
 interface RegisterPageHarness {
@@ -95,6 +112,11 @@ interface RegisterPageHarness {
     name: string;
     adminPassword: string;
   }>;
+  registrationForm: {
+    name(): { hidden(): boolean };
+    adminPassword(): { hidden(): boolean };
+    registrationKind(): { value: WritableSignal<RegistrationKind> };
+  };
   submit(event: SubmitEvent): Promise<void>;
 }
 

@@ -9,8 +9,15 @@
       <option [value]="registrationKinds.Admin">Admin</option>
     </select>
 
-    <label for="register-name">Name</label>
-    <input id="register-name" type="text" autocomplete="name" [formField]="registrationForm.name" />
+    @if (!registrationForm.name().hidden()) {
+      <label for="register-name">Name</label>
+      <input
+        id="register-name"
+        type="text"
+        autocomplete="name"
+        [formField]="registrationForm.name"
+      />
+    }
 
     @if (!registrationForm.adminPassword().hidden()) {
       <label for="register-admin-password">Administrator password</label>

@@ -44,6 +44,9 @@ export class RegisterPageComponent {
   protected readonly registrationForm = form(this.registrationModel, (registration) => {
     required(registration.registrationKind);
     required(registration.name, { message: 'Enter your name.' });
+    hidden(registration.name, {
+      when: ({ valueOf }) => valueOf(registration.registrationKind) === RegistrationKind.Admin,
+    });
     pattern(registration.name, /\S/, { message: 'Enter your name.' });
     maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
     hidden(registration.adminPassword, {
