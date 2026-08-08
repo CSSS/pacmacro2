@@ -47,12 +47,6 @@ export class GamePageComponent {
   });
 
   private readonly onVisibilityChange = () => {
-    if (this.browserWindow?.document.visibilityState === 'hidden') {
-      this.geolocation.stop();
-      this.socket.suspend();
-      return;
-    }
-    this.socket.resume();
     void this.wakeLock.handleVisibilityChange();
   };
   private readonly onOnline = () => this.socket.resume();
