@@ -16,7 +16,7 @@ For local development, add them to the ignored `.env` file in the repository roo
 ADMIN_PASSWORD=replace-with-a-long-random-password
 # These are the boundaries for UniverCity
 MIN_LAT=49.27462710773634
-MIN_LON=-123.91628624024605
+MIN_LON=-122.91628624024605
 MAX_LAT=49.28099313727333
 MAX_LON=-122.90273076431673
 ```

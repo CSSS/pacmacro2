@@ -54,8 +54,8 @@ func TestGameInitUsesEnvironmentBounds(t *testing.T) {
 		t.Fatalf("initialize game: %v", err)
 	}
 
-	wantMin := Coordinate{Latitude: 49.221927, Longitude: -123.007418}
-	wantMax := Coordinate{Latitude: 49.228999, Longitude: -122.997131}
+	wantMin := Coordinate{Latitude: 49.27462710773634, Longitude: -122.91628624024605}
+	wantMax := Coordinate{Latitude: 49.28099313727333, Longitude: -122.90273076431673}
 	if game.Min != wantMin || game.Max != wantMax {
 		t.Errorf("bounds = min %#v, max %#v; want min %#v, max %#v", game.Min, game.Max, wantMin, wantMax)
 	}
@@ -64,7 +64,7 @@ func TestGameInitUsesEnvironmentBounds(t *testing.T) {
 func setGameEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("MIN_LAT", "49.27462710773634")
-	t.Setenv("MIN_LON", "-123.91628624024605")
+	t.Setenv("MIN_LON", "-122.91628624024605")
 	t.Setenv("MAX_LAT", "49.28099313727333")
 	t.Setenv("MAX_LON", "-122.90273076431673")
 }
