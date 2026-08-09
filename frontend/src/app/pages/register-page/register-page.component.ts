@@ -20,7 +20,6 @@ import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.com
 interface RegistrationModel {
   registrationKind: RegistrationKind;
   name: string;
-  adminPassword: string;
 }
 
 @Component({
@@ -38,7 +37,6 @@ export class RegisterPageComponent {
   protected readonly registrationModel = signal<RegistrationModel>({
     registrationKind: RegistrationKind.Player,
     name: '',
-    adminPassword: '',
   });
 
   protected readonly registrationForm = form(this.registrationModel, (registration) => {
@@ -49,18 +47,9 @@ export class RegisterPageComponent {
     });
     pattern(registration.name, /\S/, { message: 'Enter your name.' });
     maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
-    hidden(registration.adminPassword, {
-      when: ({ valueOf }) => valueOf(registration.registrationKind) !== RegistrationKind.Admin,
-    });
-    required(registration.adminPassword, {
-      message: 'Enter the administrator password.',
-      when: ({ valueOf }) => valueOf(registration.registrationKind) === RegistrationKind.Admin,
-    });
   });
 
   protected readonly status = signal('');
-
-  protected readonly registrationKinds = RegistrationKind;
 
   protected async submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -74,17 +63,11 @@ export class RegisterPageComponent {
   }
 
   private async register(): Promise<void> {
-    const { registrationKind, name, adminPassword } = this.registrationForm().value();
+    const { registrationKind, name } = this.registrationForm().value();
     const trimmedName = name.trim();
     this.status.set('Registering...');
 
     try {
-      if (registrationKind === RegistrationKind.Admin) {
-        await firstValueFrom(this.api.registerAdmin(trimmedName, adminPassword));
-        await this.router.navigateByUrl('/admin');
-        return;
-      }
-
       const response = await firstValueFrom(this.api.registerPlayer(trimmedName));
       const id = response.id.trim();
       if (!id) {
