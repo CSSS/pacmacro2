@@ -54,6 +54,24 @@ func (a *Admin) ServeSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GET /api/admin/map/ws
+func (a *Admin) ServeMapSocket(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
+		return
+	}
+	if !a.authorize(r) {
+		writeJSONError(w, http.StatusUnauthorized)
+		return
+	}
+	if !ws.IsWebSocketUpgrade(r) {
+		writeJSONError(w, http.StatusBadRequest)
+		return
+	}
+
+	a.sockets.ServeViewer(w, r)
+}
+
 func (a *Admin) addConnection(connection adminSocketConnection) bool {
 	a.socketMutex.Lock()
 	defer a.socketMutex.Unlock()

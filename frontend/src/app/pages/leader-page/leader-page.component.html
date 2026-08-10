@@ -1,0 +1,84 @@
+<main class="leader-page">
+  <header>
+    <p class="eyebrow">PacMacro leader panel</p>
+    <h1>{{ leaderHeading() }}</h1>
+  </header>
+
+  <p class="connection-status" role="status">WebSocket: {{ socket.status() }}</p>
+  <p class="action-status" role="status" aria-live="polite">{{ status() }}</p>
+
+  <section class="leader-actions" aria-label="Leader actions">
+    <a class="button" href="/" target="_blank" rel="noopener">Open Map</a>
+    <button
+      type="button"
+      class="button-secondary"
+      [disabled]="refreshing()"
+      (click)="refreshState()"
+    >
+      {{ refreshing() ? 'Refreshing…' : 'Refresh Players' }}
+    </button>
+  </section>
+
+  @if (isReadOnlyLeader()) {
+    <p class="capability-note">This Leader role is read-only.</p>
+  }
+
+  @if (isFlagLeader()) {
+    <section class="flag-control" aria-label="Flag state">
+      <label>
+        <input
+          type="checkbox"
+          [checked]="isFlagFound()"
+          [disabled]="flagSaving()"
+          (change)="toggleFlag($event)"
+        />
+        Flag found
+      </label>
+    </section>
+  }
+
+  <section class="player-list" aria-label="Players">
+    @for (player of players(); track player.id) {
+      <article class="player-card" [class.player-card--offline]="!isConnected(player)">
+        <div class="player-card__identity">
+          <strong>{{ player.name }}</strong>
+          <span>{{ player.id }}</span>
+          <span class="player-card__status">
+            {{ isConnected(player) ? 'Connected' : 'Offline' }}
+          </span>
+        </div>
+
+        @if (isAntiPacLeader() && isEligible(player)) {
+          <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
+            <input
+              [id]="'leader-type-' + player.id + '-3'"
+              class="player-type"
+              type="radio"
+              [name]="'leader-type-' + player.id"
+              [value]="PlayerType.Ghost"
+              [disabled]="isPlayerSaving(player.id)"
+              [checked]="isTypeSelected(player, PlayerType.Ghost)"
+              (change)="updateType(player, PlayerType.Ghost, $event)"
+            />
+            <label class="button" [for]="'leader-type-' + player.id + '-3'">Ghost</label>
+            <input
+              [id]="'leader-type-' + player.id + '-2'"
+              class="player-type"
+              type="radio"
+              [name]="'leader-type-' + player.id"
+              [value]="PlayerType.Antipac"
+              [disabled]="isPlayerSaving(player.id)"
+              [checked]="isTypeSelected(player, PlayerType.Antipac)"
+              (change)="updateType(player, PlayerType.Antipac, $event)"
+            />
+            <label class="button" [for]="'leader-type-' + player.id + '-2'">Antipac</label>
+          </div>
+        } @else {
+          <p class="player-card__role">{{ isEligible(player) ? 'Read-only' : 'Not eligible' }}</p>
+        }
+      </article>
+    } @empty {
+      <p class="player-list__empty">Non-leader players will appear here when they register.</p>
+    }
+  </section>
+</main>

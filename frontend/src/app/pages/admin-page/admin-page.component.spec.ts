@@ -1,68 +1,69 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { AdminSocketService } from '../../core/admin-socket.service';
 import { ApiService } from '../../core/api.service';
-import { PlayerStatus, PlayerType, Representation } from '../../core/game.models';
+import { Player, PlayerStatus, PlayerType } from '../../core/game.models';
 import { AdminPageComponent } from './admin-page.component';
 
 describe('AdminPageComponent', () => {
   let fixture: ComponentFixture<AdminPageComponent>;
+  const initialPlayers: Player[] = [
+    {
+      id: 'AAAA',
+      name: 'Ada',
+      type: PlayerType.Pacman,
+      status: PlayerStatus.Connected,
+    },
+    {
+      id: 'BBBB',
+      name: 'Ben',
+      type: PlayerType.Edible,
+      status: PlayerStatus.Disconnected,
+    },
+    {
+      id: 'CCCC',
+      name: 'Gia',
+      type: PlayerType.Ghost,
+      status: PlayerStatus.Connected,
+    },
+    {
+      id: 'DDDD',
+      name: 'Lee',
+      type: PlayerType.Leader,
+      status: PlayerStatus.Disconnected,
+    },
+  ];
   const adminSocket = {
-    players: signal([
-      {
-        id: 'AAAA',
-        type: PlayerType.Player,
-        name: 'Ada',
-        reps: Representation.Pacman,
-        status: PlayerStatus.Connected,
-      },
-      {
-        id: 'BBBB',
-        type: PlayerType.Player,
-        name: 'Ben',
-        reps: Representation.Nothing,
-        status: PlayerStatus.Disconnected,
-      },
-    ]),
-    status: signal('Live player updates connected.'),
+    players: signal<Player[]>(initialPlayers.map((player) => ({ ...player }))),
+    status: signal('Connected'),
     start: vi.fn(),
   };
+  const refreshedPlayers: Player[] = [
+    {
+      id: 'EEEE',
+      name: 'Current player',
+      type: PlayerType.Hidden,
+      status: PlayerStatus.Connected,
+    },
+  ];
   const api = {
-    getPlayers: vi.fn(() =>
-      of([
-        {
-          id: 'CCCC',
-          type: PlayerType.Leader,
-          name: 'Current player',
-          reps: Representation.Ghost,
-          status: PlayerStatus.Connected,
-        },
-      ]),
-    ),
+    getPlayers: vi.fn(() => of(refreshedPlayers)),
     updatePlayer: vi.fn(() => of(undefined)),
+    resetGame: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
+    adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.start.mockClear();
-    adminSocket.players.set([
-      {
-        id: 'AAAA',
-        type: PlayerType.Player,
-        name: 'Ada',
-        reps: Representation.Pacman,
-        status: PlayerStatus.Connected,
-      },
-      {
-        id: 'BBBB',
-        type: PlayerType.Player,
-        name: 'Ben',
-        reps: Representation.Nothing,
-        status: PlayerStatus.Disconnected,
-      },
-    ]);
-    api.getPlayers.mockClear();
+    api.getPlayers.mockReset();
+    api.getPlayers.mockReturnValue(of(refreshedPlayers));
+    api.updatePlayer.mockReset();
+    api.updatePlayer.mockReturnValue(of(undefined));
+    api.resetGame.mockReset();
+    api.resetGame.mockReturnValue(of(undefined));
+
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
       providers: [{ provide: ApiService, useValue: api }],
@@ -77,38 +78,177 @@ describe('AdminPageComponent', () => {
     await fixture.whenStable();
   });
 
-  it('starts the admin player feed after rendering in the browser', () => {
+  it('starts the admin player feed and preserves the new-tab map link', () => {
+    const page = fixture.nativeElement as HTMLElement;
+    const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
+
     expect(adminSocket.start).toHaveBeenCalledOnce();
+    expect(link?.getAttribute('href')).toBe('/admin/map');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener');
   });
 
-  it('grays out disconnected players and disables their state controls', () => {
+  it('renders the seven ordered type radios in independent groups', () => {
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
-    const offlineCard = cards[1];
+    const expectedLabels = [
+      'Pacman',
+      'Ghost',
+      'Antipac',
+      'Leader',
+      'AntiPac Leader',
+      'Flag Leader',
+      'Hidden',
+    ];
+    const ids = new Set<string>();
 
-    expect(offlineCard.classList.contains('player-card--offline')).toBe(true);
-    expect(offlineCard.querySelector('.player-card__status')?.textContent).toContain('Offline');
-    for (const control of offlineCard.querySelectorAll<HTMLSelectElement | HTMLButtonElement>(
-      'select, button',
-    )) {
-      expect(control.disabled).toBe(true);
+    for (const [index, card] of [...cards].entries()) {
+      const labels = [...card.querySelectorAll<HTMLLabelElement>('.player-types label')].map(
+        (label) => label.textContent?.trim(),
+      );
+      const radios = card.querySelectorAll<HTMLInputElement>('input[type="radio"]');
+      expect(labels).toEqual(expectedLabels);
+      expect(radios).toHaveLength(7);
+      expect(new Set([...radios].map((radio) => radio.name))).toEqual(
+        new Set([`type-${initialPlayers[index].id}`]),
+      );
+      for (const radio of radios) {
+        ids.add(radio.id);
+      }
     }
 
-    const connectedControls = cards[0].querySelectorAll<HTMLSelectElement | HTMLButtonElement>(
-      'select, button',
+    expect(ids.size).toBe(initialPlayers.length * 7);
+    expect(page.textContent).not.toContain('Update AAAA');
+  });
+
+  it('shows Edible as Ghost-selected and disables offline player radios', () => {
+    const page = fixture.nativeElement as HTMLElement;
+    const cards = page.querySelectorAll<HTMLElement>('.player-card');
+    const connectedRadios = cards[0].querySelectorAll<HTMLInputElement>('input[type="radio"]');
+    const edibleRadios = cards[1].querySelectorAll<HTMLInputElement>('input[type="radio"]');
+    const selectedLabel = cards[1]
+      .querySelector<HTMLInputElement>('input[type="radio"]:checked')
+      ?.nextElementSibling?.textContent?.trim();
+
+    expect([...connectedRadios].every((radio) => !radio.disabled)).toBe(true);
+    expect([...edibleRadios].every((radio) => radio.disabled)).toBe(true);
+    expect(selectedLabel).toBe('Ghost');
+  });
+
+  it('applies a connected player radio selection immediately', async () => {
+    const page = fixture.nativeElement as HTMLElement;
+    const antipac = page.querySelector<HTMLInputElement>('#type-AAAA-2');
+
+    antipac?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.updatePlayer).toHaveBeenCalledWith('AAAA', PlayerType.Antipac);
+    expect(adminSocket.players().find((player) => player.id === 'AAAA')?.type).toBe(
+      PlayerType.Antipac,
     );
-    expect([...connectedControls].every((control) => !control.disabled)).toBe(true);
+  });
+
+  it('demotes the existing Pacman when another player is selected as Pacman', async () => {
+    const page = fixture.nativeElement as HTMLElement;
+    page.querySelector<HTMLInputElement>('#type-CCCC-1')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.updatePlayer).toHaveBeenCalledWith('CCCC', PlayerType.Pacman);
+    expect(adminSocket.players().find((player) => player.id === 'AAAA')?.type).toBe(
+      PlayerType.Ghost,
+    );
+    expect(adminSocket.players().find((player) => player.id === 'CCCC')?.type).toBe(
+      PlayerType.Pacman,
+    );
+  });
+
+  it('demotes only the previous holder when assigning a specialized leader role', async () => {
+    adminSocket.players.set([
+      {
+        id: 'AAAA',
+        name: 'Existing',
+        type: PlayerType.AntiPacLeader,
+        status: PlayerStatus.Connected,
+      },
+      {
+        id: 'CCCC',
+        name: 'Target',
+        type: PlayerType.Ghost,
+        status: PlayerStatus.Connected,
+      },
+    ]);
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    page.querySelector<HTMLInputElement>('#type-CCCC-6')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.updatePlayer).toHaveBeenCalledWith('CCCC', PlayerType.AntiPacLeader);
+    expect(adminSocket.players().find((player) => player.id === 'AAAA')?.type).toBe(
+      PlayerType.Leader,
+    );
+    expect(adminSocket.players().find((player) => player.id === 'CCCC')?.type).toBe(
+      PlayerType.AntiPacLeader,
+    );
+  });
+
+  it('restores server-backed selection when an immediate update fails', async () => {
+    api.updatePlayer.mockReturnValueOnce(throwError(() => new Error('update failed')));
+    const page = fixture.nativeElement as HTMLElement;
+    page.querySelector<HTMLInputElement>('#type-AAAA-3')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(adminSocket.players().find((player) => player.id === 'AAAA')?.type).toBe(
+      PlayerType.Pacman,
+    );
+    expect(page.querySelector('.admin-status')?.textContent).toContain('Could not update Ada');
+    expect(page.querySelector<HTMLInputElement>('#type-AAAA-1')?.checked).toBe(true);
+  });
+
+  it('makes connected Ghosts Edible without changing other players', async () => {
+    const button = findButton('Make Ghosts Edible');
+    button?.click();
+    await fixture.whenStable();
+
+    expect(api.updatePlayer).toHaveBeenCalledTimes(1);
+    expect(api.updatePlayer).toHaveBeenCalledWith('CCCC', PlayerType.Edible);
+  });
+
+  it('resets connected and offline non-Leaders to Ghost while preserving Leaders', async () => {
+    const button = findButton('Reset Game');
+    button?.click();
+    await fixture.whenStable();
+
+    expect(api.resetGame).toHaveBeenCalledOnce();
+    expect(api.updatePlayer).not.toHaveBeenCalled();
+    expect(adminSocket.players().find((player) => player.id === 'AAAA')?.type).toBe(
+      PlayerType.Ghost,
+    );
+    expect(adminSocket.players().find((player) => player.id === 'BBBB')?.type).toBe(
+      PlayerType.Ghost,
+    );
+    expect(adminSocket.players().find((player) => player.id === 'DDDD')?.type).toBe(
+      PlayerType.Leader,
+    );
   });
 
   it('can manually refresh the current player list', async () => {
     const page = fixture.nativeElement as HTMLElement;
-    const refreshButton = page.querySelector<HTMLButtonElement>('.button-secondary');
-
-    refreshButton?.click();
+    page.querySelector<HTMLButtonElement>('.button-secondary')?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 
     expect(api.getPlayers).toHaveBeenCalledOnce();
     expect(page.querySelector('.player-card strong')?.textContent).toContain('Current player');
   });
+
+  function findButton(label: string): HTMLButtonElement | undefined {
+    const page = fixture.nativeElement as HTMLElement;
+    return [...page.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent?.trim() === label,
+    );
+  }
 });

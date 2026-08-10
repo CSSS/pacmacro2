@@ -19,6 +19,7 @@ describe('map utilities', () => {
     max: { latitude: 20, longitude: 40 },
     width: 32,
     height: 16,
+    isFlagFound: false,
   };
 
   it('converts the map corners and centre', () => {

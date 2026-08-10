@@ -14,14 +14,29 @@ import (
 
 type Game struct {
 	// private
-	players *Players
-	mutex   sync.Mutex
+	players    *Players
+	mutex      sync.RWMutex
+	eventMutex sync.Mutex
+	observers  []func(GameState)
 
 	// public
-	Min    Coordinate `json:"min"`
-	Max    Coordinate `json:"max"`
-	Width  uint64     `json:"width"`
-	Height uint64     `json:"height"`
+	Min         Coordinate `json:"min"`
+	Max         Coordinate `json:"max"`
+	Width       uint64     `json:"width"`
+	Height      uint64     `json:"height"`
+	IsFlagFound bool       `json:"isFlagFound"`
+}
+
+type GameState struct {
+	IsFlagFound bool `json:"isFlagFound"`
+}
+
+type GameSnapshot struct {
+	Min         Coordinate `json:"min"`
+	Max         Coordinate `json:"max"`
+	Width       uint64     `json:"width"`
+	Height      uint64     `json:"height"`
+	IsFlagFound bool       `json:"isFlagFound"`
 }
 
 func (g *Game) Init(players *Players) error {
@@ -55,9 +70,52 @@ func (g *Game) Init(players *Players) error {
 	// coordinate size of map
 	g.Width = 32
 	g.Height = 32
+	g.IsFlagFound = false
 
 	fmt.Print("Game handler initialized.\n")
 	return nil
+}
+
+func (g *Game) Snapshot() GameSnapshot {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+	return GameSnapshot{
+		Min: g.Min, Max: g.Max, Width: g.Width, Height: g.Height,
+		IsFlagFound: g.IsFlagFound,
+	}
+}
+
+func (g *Game) State() GameState {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+	return GameState{IsFlagFound: g.IsFlagFound}
+}
+
+func (g *Game) AddObserver(observer func(GameState)) {
+	if observer == nil {
+		return
+	}
+	g.mutex.Lock()
+	g.observers = append(g.observers, observer)
+	g.mutex.Unlock()
+}
+
+func (g *Game) SetFlagFound(isFlagFound bool) bool {
+	g.eventMutex.Lock()
+	defer g.eventMutex.Unlock()
+	g.mutex.Lock()
+	if g.IsFlagFound == isFlagFound {
+		g.mutex.Unlock()
+		return false
+	}
+	g.IsFlagFound = isFlagFound
+	state := GameState{IsFlagFound: isFlagFound}
+	observers := append([]func(GameState){}, g.observers...)
+	g.mutex.Unlock()
+	for _, observer := range observers {
+		observer(state)
+	}
+	return true
 }
 
 func requiredEnvironmentFloat(name string) (float64, error) {
@@ -93,5 +151,5 @@ func (g *Game) ServeMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, g)
+	writeJSON(w, http.StatusOK, g.Snapshot())
 }

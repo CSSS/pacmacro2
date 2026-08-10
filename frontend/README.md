@@ -25,7 +25,8 @@ npm test -- --watch=false
 npm run build
 ```
 
-The production command prerenders `/`, `/register`, and `/admin`. Deploy the static files from `dist/frontend/browser`; no Node process is required in production.
+The production command prerenders `/`, `/register`, `/admin`, and `/admin/map`.
+Deploy the static files from `dist/frontend/browser`.
 
 ## Nginx deployment
 
@@ -61,6 +62,8 @@ Select **Admin** on the registration page and enter the password configured as `
 The backend verifies it once and returns a session-scoped HttpOnly cookie.
 The Angular application cannot read the cookie; the browser sends it automatically to `/api/admin` requests.
 
+The admin control panel opens `/admin/map` in a separate tab. That page connects to the authenticated `/api/admin/map/ws` endpoint and receives the normal live game feed without creating a player or sending coordinates. If the session cookie has expired, register as admin again before reopening the map.
+
 The administrator is maintained separately from players, receives no player ID, and does not appear on the game map or player list.
 The Nginx `X-Forwarded-Proto` header shown above allows the backend to mark the cookie `Secure` when the public request uses HTTPS.
 
@@ -69,5 +72,3 @@ The Nginx `X-Forwarded-Proto` header shown above allows the backend to mark the 
 - Standalone, zoneless Angular components using signals and `OnPush` change detection
 - SCSS and HTML stored in external files
 - `pac` component-selector prefix
-- Angular 2016 filenames such as `game-page.component.ts`
-- Angular artifact types included in class names, such as `GamePageComponent` and `ApiService`

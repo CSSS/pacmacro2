@@ -42,7 +42,8 @@ a {
 
 input,
 select,
-button {
+button,
+.button {
   min-height: 2.75rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid #a0a0a0;
@@ -52,19 +53,23 @@ button {
   font: inherit;
 }
 
-button {
+button,
+.button {
   border-color: #222;
   background: #111;
   color: #fff;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
 }
 
-button:hover:not(:disabled) {
+button:hover:not(:disabled),
+.button:hover:not(:disabled) {
   background: #333;
 }
 
-button:disabled {
+button:disabled,
+.button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }

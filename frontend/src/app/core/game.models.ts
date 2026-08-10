@@ -8,6 +8,7 @@ export interface MapInfo {
   max: Coordinate;
   width: number;
   height: number;
+  isFlagFound: boolean;
 }
 
 export interface Plot {
@@ -16,18 +17,19 @@ export interface Plot {
 }
 
 export enum PlayerType {
-  Player = 0,
-  Leader = 1,
-  Admin = 2,
-  Hidden = 3,
-}
-
-export enum Representation {
-  Nothing = 0,
+  Hidden = 0,
   Pacman = 1,
   Antipac = 2,
   Ghost = 3,
   Edible = 4,
+  Leader = 5,
+  AntiPacLeader = 6,
+  FlagLeader = 7,
+}
+
+export enum RegistrationKind {
+  Player = 'player',
+  Admin = 'admin',
 }
 
 export enum PlayerStatus {
@@ -38,9 +40,8 @@ export enum PlayerStatus {
 
 export interface Player {
   id: string;
-  type: PlayerType;
   name: string;
-  reps: Representation;
+  type: PlayerType;
   status: PlayerStatus;
 }
 
@@ -53,10 +54,28 @@ export interface LivePlayer {
 }
 
 export interface SocketMessage {
-  coordinate: Coordinate;
-  command: 'inform' | 'move' | string;
+  coordinate?: Coordinate;
+  command: 'inform' | 'move' | 'remove' | 'state' | string;
   data: string;
 }
+
+export interface GameState {
+  isFlagFound: boolean;
+}
+
+export interface LeaderState {
+  leader: Player;
+  players: Player[];
+  isFlagFound: boolean;
+}
+
+export type LeaderSocketMessage =
+  | { event: 'snapshot'; leader: Player; players: Player[]; isFlagFound: boolean }
+  | { event: 'upsert'; player: Player }
+  | { event: 'remove'; playerId: string }
+  | { event: 'self'; leader: Player }
+  | { event: 'flag'; isFlagFound: boolean }
+  | { event: 'revoked'; reason?: string };
 
 export interface Credentials {
   id: string;
@@ -66,25 +85,55 @@ export interface PlayerRegistrationResponse {
   id: string;
 }
 
-export const PLAYER_TYPES: ReadonlyArray<{ value: PlayerType; label: string }> = [
-  { value: PlayerType.Player, label: 'Player' },
+export const PLAYER_TYPES: ReadonlyArray<{
+  value: PlayerType;
+  label: string;
+}> = [
+  { value: PlayerType.Pacman, label: 'Pacman' },
+  { value: PlayerType.Ghost, label: 'Ghost' },
+  { value: PlayerType.Antipac, label: 'Antipac' },
   { value: PlayerType.Leader, label: 'Leader' },
+  { value: PlayerType.AntiPacLeader, label: 'AntiPac Leader' },
+  { value: PlayerType.FlagLeader, label: 'Flag Leader' },
   { value: PlayerType.Hidden, label: 'Hidden' },
 ];
 
-export const REPRESENTATIONS: ReadonlyArray<{
-  value: Representation;
-  label: string;
-}> = [
-  { value: Representation.Nothing, label: 'Nothing' },
-  { value: Representation.Pacman, label: 'Pacman' },
-  { value: Representation.Antipac, label: 'Antipac' },
-  { value: Representation.Ghost, label: 'Ghost' },
-  { value: Representation.Edible, label: 'Edible' },
-];
+export function typeLabel(value: PlayerType): string {
+  const labels: Record<PlayerType, string> = {
+    [PlayerType.Hidden]: 'Hidden',
+    [PlayerType.Pacman]: 'Pacman',
+    [PlayerType.Antipac]: 'Antipac',
+    [PlayerType.Ghost]: 'Ghost',
+    [PlayerType.Edible]: 'Edible',
+    [PlayerType.Leader]: 'Leader',
+    [PlayerType.AntiPacLeader]: 'AntiPac Leader',
+    [PlayerType.FlagLeader]: 'Flag Leader',
+  };
+  return labels[value] ?? 'Unknown';
+}
 
-export function representationLabel(value: Representation): string {
+export function isPlayerType(value: unknown): value is PlayerType {
   return (
-    REPRESENTATIONS.find((representation) => representation.value === value)?.label ?? 'Unknown'
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= PlayerType.Hidden &&
+    value <= PlayerType.FlagLeader
+  );
+}
+
+export function isPlayerStatus(value: unknown): value is PlayerStatus {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= PlayerStatus.Gone &&
+    value <= PlayerStatus.Connected
+  );
+}
+
+export function isLeaderType(value: PlayerType): boolean {
+  return (
+    value === PlayerType.Leader ||
+    value === PlayerType.AntiPacLeader ||
+    value === PlayerType.FlagLeader
   );
 }

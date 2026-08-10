@@ -1,9 +1,18 @@
 import { inject, Service, signal } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
-import { Coordinate, LivePlayer, Player, SocketMessage } from './game.models';
+import {
+  Coordinate,
+  GameState,
+  isPlayerStatus,
+  isPlayerType,
+  LivePlayer,
+  Player,
+  SocketMessage,
+} from './game.models';
 
 export type SocketState = 'idle' | 'connecting' | 'connected' | 'offline' | 'suspended' | 'error';
+type SocketMode = 'player' | 'viewer';
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 10000] as const;
 const WEB_SOCKET_OPEN = 1;
@@ -16,24 +25,38 @@ export class GameSocketService {
   private reconnectTimer: number | null = null;
   private reconnectAttempt = 0;
   private playerId: string | null = null;
+  private mode: SocketMode | null = null;
   private active = false;
   private intentionallyClosed = false;
   private onConnected: (() => void) | null = null;
 
   readonly players = signal<Record<string, LivePlayer>>({});
+  readonly isFlagFound = signal(false);
   readonly state = signal<SocketState>('idle');
   readonly status = signal('Not connected.');
 
   start(id: string, onConnected: () => void): void {
     this.stop();
+    this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
     this.active = true;
     this.resume();
   }
 
+  startViewer(onConnected: () => void = () => undefined): void {
+    this.stop();
+    this.mode = 'viewer';
+    this.onConnected = onConnected;
+    this.active = true;
+    this.resume();
+  }
+
   resume(): void {
-    if (!this.active || !this.playerId || !this.browserWindow) {
+    if (!this.active || !this.mode || !this.browserWindow) {
+      return;
+    }
+    if (this.mode === 'player' && !this.playerId) {
       return;
     }
     if (this.browserWindow.navigator.onLine === false) {
@@ -66,20 +89,31 @@ export class GameSocketService {
     if (socket && socket.readyState < WEB_SOCKET_CLOSING) {
       socket.close(1000, 'Client stopped');
     }
+    this.mode = null;
+    this.playerId = null;
+    this.onConnected = null;
+    this.reconnectAttempt = 0;
     this.state.set('idle');
     this.status.set('Not connected.');
   }
 
   sendCoordinate(coordinate: Coordinate): boolean {
-    if (!this.socket || this.socket.readyState !== WEB_SOCKET_OPEN) {
+    if (this.mode !== 'player' || !this.socket || this.socket.readyState !== WEB_SOCKET_OPEN) {
       return false;
     }
     this.socket.send(JSON.stringify(coordinate));
     return true;
   }
 
+  setInitialState(state: GameState): void {
+    this.isFlagFound.set(state.isFlagFound);
+  }
+
   private connect(): void {
-    if (!this.browserWindow || !this.playerId) {
+    if (!this.browserWindow || !this.mode) {
+      return;
+    }
+    if (this.mode === 'player' && !this.playerId) {
       return;
     }
     if (this.socket && this.socket.readyState <= WEB_SOCKET_OPEN) {
@@ -88,24 +122,42 @@ export class GameSocketService {
 
     this.clearReconnectTimer();
     this.state.set('connecting');
-    this.status.set(this.reconnectAttempt ? 'Reconnecting to the game…' : 'Joining PacMacro…');
+    this.status.set(
+      this.mode === 'viewer'
+        ? this.reconnectAttempt
+          ? 'Reconnecting to the admin map…'
+          : 'Connecting to the admin map…'
+        : this.reconnectAttempt
+          ? 'Reconnecting to the game…'
+          : 'Joining PacMacro…',
+    );
 
     const protocol = this.browserWindow.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${this.browserWindow.location.host}/api/ws/${encodeURIComponent(this.playerId)}`;
+    const url =
+      this.mode === 'viewer'
+        ? `${protocol}//${this.browserWindow.location.host}/api/admin/map/ws`
+        : `${protocol}//${this.browserWindow.location.host}/api/ws/${encodeURIComponent(this.playerId!)}`;
 
     let socket: WebSocket;
     try {
       socket = new this.browserWindow.WebSocket(url);
     } catch {
       this.state.set('error');
-      this.status.set('The game connection could not be created.');
+      this.status.set(
+        this.mode === 'viewer'
+          ? 'The admin map connection could not be created.'
+          : 'The game connection could not be created.',
+      );
       this.scheduleReconnect();
       return;
     }
     this.socket = socket;
 
     socket.addEventListener('open', () => {
-      if (this.socket !== socket || !this.playerId) {
+      if (this.socket !== socket || !this.active || !this.mode) {
+        return;
+      }
+      if (this.mode === 'player' && !this.playerId) {
         return;
       }
       // A reconnect receives a fresh list of active players from the server.
@@ -113,7 +165,7 @@ export class GameSocketService {
       this.players.set({});
       this.reconnectAttempt = 0;
       this.state.set('connected');
-      this.status.set('Connected.');
+      this.status.set(this.mode === 'viewer' ? 'Connected to the admin map.' : 'Connected.');
       this.onConnected?.();
     });
 
@@ -121,7 +173,11 @@ export class GameSocketService {
     socket.addEventListener('error', () => {
       if (this.socket === socket) {
         this.state.set('error');
-        this.status.set('The game connection encountered an error.');
+        this.status.set(
+          this.mode === 'viewer'
+            ? 'The admin map connection was rejected. Register as admin again in this browser, then retry.'
+            : 'The game connection encountered an error.',
+        );
       }
     });
     socket.addEventListener('close', () => {
@@ -146,7 +202,11 @@ export class GameSocketService {
     }
     const delay = RECONNECT_DELAYS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS.length - 1)];
     this.reconnectAttempt += 1;
-    this.status.set(`Connection lost. Retrying in ${delay / 1000} s…`);
+    this.status.set(
+      this.mode === 'viewer'
+        ? `Admin map connection lost. Register as admin again if the session expired. Retrying in ${delay / 1000} s…`
+        : `Connection lost. Retrying in ${delay / 1000} s…`,
+    );
     this.reconnectTimer = this.browserWindow.setTimeout(() => {
       this.reconnectTimer = null;
       this.connect();
@@ -173,7 +233,42 @@ export class GameSocketService {
       return;
     }
 
-    if (!isCoordinate(message.coordinate)) {
+    if (
+      !message ||
+      typeof message !== 'object' ||
+      typeof message.command !== 'string' ||
+      typeof message.data !== 'string'
+    ) {
+      return;
+    }
+
+    if (message.command === 'remove') {
+      this.players.update((players) => {
+        if (!(message.data in players)) {
+          return players;
+        }
+        const remaining = { ...players };
+        delete remaining[message.data];
+        return remaining;
+      });
+      return;
+    }
+
+    const coordinate = message.coordinate;
+    if (!isCoordinate(coordinate)) {
+      return;
+    }
+
+    if (message.command === 'state') {
+      let state: GameState;
+      try {
+        state = JSON.parse(message.data) as GameState;
+      } catch {
+        return;
+      }
+      if (typeof state?.isFlagFound === 'boolean') {
+        this.isFlagFound.set(state.isFlagFound);
+      }
       return;
     }
 
@@ -189,7 +284,7 @@ export class GameSocketService {
       }
       this.players.update((players) => ({
         ...players,
-        [player.id]: { coordinate: message.coordinate, player },
+        [player.id]: { coordinate, player },
       }));
       return;
     }
@@ -202,7 +297,7 @@ export class GameSocketService {
         }
         return {
           ...players,
-          [message.data]: { ...current, coordinate: message.coordinate },
+          [message.data]: { ...current, coordinate },
         };
       });
     }
@@ -225,8 +320,7 @@ function isPlayer(value: unknown): value is Player {
   return (
     typeof player.id === 'string' &&
     typeof player.name === 'string' &&
-    Number.isInteger(player.type) &&
-    Number.isInteger(player.reps) &&
-    Number.isInteger(player.status)
+    isPlayerType(player.type) &&
+    isPlayerStatus(player.status)
   );
 }

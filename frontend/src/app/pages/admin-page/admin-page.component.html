@@ -4,16 +4,19 @@
     <h1>Admin</h1>
   </header>
 
-  <p class="admin-connection-status" role="status">{{ connectionStatus() }}</p>
+  <p class="admin-connection-status" role="status">Websocket: {{ connectionStatus() }}</p>
   <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
 
-  <section class="admin-actions" aria-label="Bulk player actions">
-    <button type="button" [disabled]="!hasConnectedPlayers()" (click)="makeGhostsEdible()">
+  <section class="admin-actions" aria-label="Admin actions">
+    <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
+    <button
+      type="button"
+      [disabled]="updatesInProgress() || !hasConnectedGhosts()"
+      (click)="makeGhostsEdible()"
+    >
       Make Ghosts Edible
     </button>
-    <button type="button" [disabled]="!hasConnectedPlayers()" (click)="makeAllNothing()">
-      Make All Nothing
-    </button>
+    <button type="button" [disabled]="updatesInProgress()" (click)="resetGame()">Reset Game</button>
     <button
       type="button"
       class="button-secondary"
@@ -26,11 +29,7 @@
 
   <section class="player-list" aria-label="Players">
     @for (player of players(); track player.id) {
-      <article
-        class="player-card"
-        [class.player-card--hidden]="player.type === PlayerType.Hidden"
-        [class.player-card--offline]="!isConnected(player)"
-      >
+      <article class="player-card" [class.player-card--offline]="!isConnected(player)">
         <div class="player-card__identity">
           <strong>{{ player.name }}</strong>
           <span>{{ player.id }}</span>
@@ -39,37 +38,23 @@
           </span>
         </div>
 
-        <label>
-          Type
-          <select
-            [ngModel]="player.type"
-            (ngModelChange)="setType(player.id, $event)"
-            [name]="'type-' + player.id"
-            [disabled]="!isConnected(player)"
-          >
-            @for (type of playerTypes; track type.value) {
-              <option [ngValue]="type.value">{{ type.label }}</option>
-            }
-          </select>
-        </label>
-
-        <label>
-          Representation
-          <select
-            [ngModel]="player.reps"
-            (ngModelChange)="setRepresentation(player.id, $event)"
-            [name]="'reps-' + player.id"
-            [disabled]="!isConnected(player)"
-          >
-            @for (representation of representations; track representation.value) {
-              <option [ngValue]="representation.value">{{ representation.label }}</option>
-            }
-          </select>
-        </label>
-
-        <button type="button" [disabled]="!isConnected(player)" (click)="updatePlayer(player)">
-          Update {{ player.id }}
-        </button>
+        <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
+          @for (playerType of playerTypes; track playerType.value) {
+            <input
+              [id]="'type-' + player.id + '-' + playerType.value"
+              class="player-type"
+              type="radio"
+              [name]="'type-' + player.id"
+              [value]="playerType.value"
+              [disabled]="updatesInProgress() || isPlayerControlDisabled(player)"
+              [checked]="isTypeSelected(player, playerType.value)"
+              (change)="updateType(player, playerType.value, $event)"
+            />
+            <label class="button" [for]="'type-' + player.id + '-' + playerType.value">
+              {{ playerType.label }}
+            </label>
+          }
+        </div>
       </article>
     } @empty {
       <p class="player-list__empty">Players will appear here when they register.</p>

@@ -23,28 +23,51 @@ type moveEvent struct {
 	coord      Coordinate
 }
 
+type connectionRole uint8
+
+const (
+	playerConnection connectionRole = iota
+	viewerConnection
+)
+
 type Sockets struct {
 	// private
 	players *Players
 	hub     *Hub
 }
 
-func (s *Sockets) Init(players *Players) {
+func (s *Sockets) Init(players *Players, games ...*Game) {
 	s.players = players
-	s.hub = NewHub(players)
+	s.hub = NewHub(players, games...)
 
 	go s.hub.Run()
+	if len(games) > 0 && games[0] != nil {
+		games[0].AddObserver(s.BroadcastState)
+	}
 
 	fmt.Print("Sockets handler initialized.\n")
+}
+
+func (s *Sockets) BroadcastState(state GameState) {
+	s.hub.state <- state
 }
 
 func (s *Sockets) Inform(playerID PlayerID) {
 	s.hub.inform <- playerID
 }
 
+// ClearOfflineLocations removes all retained last-known locations while
+// leaving coordinates for currently connected players untouched.
+func (s *Sockets) ClearOfflineLocations() {
+	done := make(chan struct{})
+	s.hub.clearOffline <- done
+	<-done
+}
+
 type Conn struct {
 	socket   *ws.Conn
 	playerID PlayerID
+	role     connectionRole
 	send     chan []byte
 
 	unregisterOnce sync.Once
@@ -87,6 +110,10 @@ func (c *Conn) readPump(hub *Hub) error {
 		if messageType == ws.CloseMessage {
 			return nil
 		}
+		if c.role == viewerConnection {
+			// Map viewers are a receive-only participant in the game hub.
+			continue
+		}
 
 		var coordinate Coordinate
 		if err := json.Unmarshal(data, &coordinate); err != nil {
@@ -123,6 +150,7 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	connection := &Conn{
 		socket:   socket,
 		playerID: playerID,
+		role:     playerConnection,
 		send:     make(chan []byte, socketSendQueueSize),
 	}
 
@@ -135,5 +163,31 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("Sockets\tServeHTTP (/api/ws/):\tID %q: Connection closed by error: %v.\n", playerID, err)
 	} else {
 		fmt.Printf("Sockets\tServeHTTP (/api/ws/):\tID %q: Connection closed by user.\n", playerID)
+	}
+}
+
+// ServeViewer upgrades an already-authorized admin request to a read-only
+// connection on the game hub.
+func (s *Sockets) ServeViewer(w http.ResponseWriter, r *http.Request) {
+	socket, err := Upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	connection := &Conn{
+		socket: socket,
+		role:   viewerConnection,
+		send:   make(chan []byte, socketSendQueueSize),
+	}
+
+	go connection.writePump(s.hub)
+	s.hub.register <- connection
+
+	fmt.Print("Sockets\tServeViewer (/api/admin/map/ws):\tConnection opened.\n")
+
+	if err := connection.readPump(s.hub); err != nil {
+		fmt.Printf("Sockets\tServeViewer (/api/admin/map/ws):\tConnection closed by error: %v.\n", err)
+	} else {
+		fmt.Print("Sockets\tServeViewer (/api/admin/map/ws):\tConnection closed by user.\n")
 	}
 }

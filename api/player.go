@@ -14,7 +14,6 @@ import (
 type PlayerID string
 
 type PlayerRegistrationRequest struct {
-	Type *int   `json:"type"`
 	Name string `json:"name"`
 }
 
@@ -23,19 +22,16 @@ type PlayerRegistrationResponse struct {
 }
 
 type PlayerResponse struct {
-	ID     PlayerID `json:"id"`
-	Type   uint64   `json:"type"`
-	Name   string   `json:"name"`
-	Reps   uint64   `json:"reps"`
-	Status uint64   `json:"status"`
+	ID     PlayerID   `json:"id"`
+	Name   string     `json:"name"`
+	Type   PlayerType `json:"type"`
+	Status uint64     `json:"status"`
 }
 
-// zero-value player: player, pacman, disconnected
 type Player struct {
-	Type   uint64 `json:"type"`
-	Name   string `json:"name"` // alt.: description
-	Reps   uint64 `json:"reps"` // represents
-	Status uint64 `json:"status"`
+	Name   string     `json:"name"` // alt.: description
+	Type   PlayerType `json:"type"`
+	Status uint64     `json:"status"`
 }
 
 func (p *Player) Format(ID PlayerID) string {
@@ -46,17 +42,17 @@ func (p *Player) Format(ID PlayerID) string {
 func newPlayerResponse(ID PlayerID, player *Player) PlayerResponse {
 	return PlayerResponse{
 		ID:     ID,
-		Type:   player.Type,
 		Name:   player.Name,
-		Reps:   player.Reps,
+		Type:   player.Type,
 		Status: player.Status,
 	}
 }
 
 type Players struct {
-	players  map[PlayerID]*Player
-	mutex    sync.Mutex
-	observer func(PlayerResponse)
+	players          map[PlayerID]*Player
+	mutex            sync.Mutex
+	observers        []func(PlayerResponse)
+	removalObservers []func(PlayerID)
 }
 
 func (p *Players) Init() {
@@ -66,16 +62,54 @@ func (p *Players) Init() {
 }
 
 func (p *Players) SetObserver(observer func(PlayerResponse)) {
-	p.observer = observer
+	p.mutex.Lock()
+	p.observers = nil
+	if observer != nil {
+		p.observers = append(p.observers, observer)
+	}
+	p.mutex.Unlock()
+}
+
+func (p *Players) AddObserver(observer func(PlayerResponse)) {
+	if observer == nil {
+		return
+	}
+	p.mutex.Lock()
+	p.observers = append(p.observers, observer)
+	p.mutex.Unlock()
+}
+
+func (p *Players) AddRemovalObserver(observer func(PlayerID)) {
+	if observer == nil {
+		return
+	}
+	p.mutex.Lock()
+	p.removalObservers = append(p.removalObservers, observer)
+	p.mutex.Unlock()
 }
 
 func (p *Players) notify(response PlayerResponse) {
-	if p.observer != nil {
-		p.observer(response)
+	p.mutex.Lock()
+	observers := append([]func(PlayerResponse){}, p.observers...)
+	p.mutex.Unlock()
+	for _, observer := range observers {
+		observer(response)
 	}
 }
 
-func (p *Players) New(t uint64, name string, reps uint64, status uint64) PlayerID {
+func (p *Players) notifyRemoval(ID PlayerID) {
+	p.mutex.Lock()
+	observers := append([]func(PlayerID){}, p.removalObservers...)
+	p.mutex.Unlock()
+	for _, observer := range observers {
+		observer(ID)
+	}
+}
+
+func (p *Players) New(playerType PlayerType, name string, status uint64) PlayerID {
+	if !playerType.Valid() {
+		return ""
+	}
 	p.mutex.Lock()
 
 	var ID PlayerID
@@ -99,9 +133,8 @@ func (p *Players) New(t uint64, name string, reps uint64, status uint64) PlayerI
 	p.players[ID] = new(Player)
 	// no need to check if it was found; we just inserted it
 	player, _ := p.players[ID]
-	player.Type = t
 	player.Name = name
-	player.Reps = reps
+	player.Type = playerType
 	player.Status = status
 	response := newPlayerResponse(ID, player)
 	p.mutex.Unlock()
@@ -112,9 +145,14 @@ func (p *Players) New(t uint64, name string, reps uint64, status uint64) PlayerI
 
 func (p *Players) Delete(ID PlayerID) {
 	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	delete(p.players, ID)
+	_, found := p.players[ID]
+	if found {
+		delete(p.players, ID)
+	}
+	p.mutex.Unlock()
+	if found {
+		p.notifyRemoval(ID)
+	}
 }
 
 func (p *Players) SetStatus(ID PlayerID, status uint64) {
@@ -139,10 +177,21 @@ func (p *Players) Get(ID PlayerID) *Player {
 	defer p.mutex.Unlock()
 
 	if player, found := p.players[ID]; found {
-		return player
+		copy := *player
+		return &copy
 	} else {
 		return nil
 	}
+}
+
+func (p *Players) Response(ID PlayerID) (PlayerResponse, bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	player, found := p.players[ID]
+	if !found {
+		return PlayerResponse{}, false
+	}
+	return newPlayerResponse(ID, player), true
 }
 
 func (p *Players) List() []PlayerResponse {
@@ -156,35 +205,151 @@ func (p *Players) List() []PlayerResponse {
 	return players
 }
 
-// UpdateConnected updates a connected player. Potential return values are:
-//
-// (false, false) - player not found
-//
-// (true, false) - player is found, but not connected
-//
-// (true, true) - player exists and is found
-func (p *Players) UpdateConnected(
-	ID PlayerID,
-	playerType uint64,
-	representation uint64,
-) (bool, bool) {
+// Update changes a player's type whether or not the player is connected and
+// atomically applies the demotion rule for every unique role.
+func (p *Players) Update(
+	playerID PlayerID,
+	playerType PlayerType,
+) (PlayerResponse, []PlayerResponse, bool) {
+	if !playerType.Valid() {
+		return PlayerResponse{}, nil, false
+	}
 	p.mutex.Lock()
-	player, found := p.players[ID]
+	player, found := p.players[playerID]
 	if !found {
 		p.mutex.Unlock()
-		return false, false
+		return PlayerResponse{}, nil, false
 	}
-	if player.Status != StatusConn {
-		p.mutex.Unlock()
-		return true, false
+
+	demoted := make([]PlayerResponse, 0)
+	demotionType, unique := uniqueRoleDemotion(playerType)
+	if unique {
+		for otherID, otherPlayer := range p.players {
+			if otherID == playerID || otherPlayer.Type != playerType {
+				continue
+			}
+			otherPlayer.Type = demotionType
+			demoted = append(demoted, newPlayerResponse(otherID, otherPlayer))
+		}
 	}
 
 	player.Type = playerType
-	player.Reps = representation
-	response := newPlayerResponse(ID, player)
+	response := newPlayerResponse(playerID, player)
 	p.mutex.Unlock()
+	for _, demotedPlayer := range demoted {
+		p.notify(demotedPlayer)
+	}
 	p.notify(response)
-	return true, true
+	return response, demoted, true
+}
+
+func uniqueRoleDemotion(playerType PlayerType) (PlayerType, bool) {
+	switch playerType {
+	case TypePacman, TypeAntipac:
+		return TypeGhost, true
+	case TypeAntiPacLeader, TypeFlagLeader:
+		return TypeLeader, true
+	default:
+		return 0, false
+	}
+}
+
+type LeaderUpdateResult uint8
+
+const (
+	LeaderUpdateOK LeaderUpdateResult = iota
+	LeaderUpdateUnauthorized
+	LeaderUpdateForbidden
+	LeaderUpdateNotFound
+	LeaderUpdateConflict
+)
+
+// UpdateByAntiPacLeader performs authorization, eligibility checks, and the
+// single-Antipac transition while holding the player lock.
+func (p *Players) UpdateByAntiPacLeader(
+	leaderID PlayerID,
+	targetID PlayerID,
+	playerType PlayerType,
+) ([]PlayerResponse, LeaderUpdateResult) {
+	p.mutex.Lock()
+	leader, found := p.players[leaderID]
+	if !found || !IsLeaderType(leader.Type) {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateUnauthorized
+	}
+	if leader.Type != TypeAntiPacLeader {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateForbidden
+	}
+	target, found := p.players[targetID]
+	if !found {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateNotFound
+	}
+	if target.Status != StatusConn ||
+		(target.Type != TypeGhost && target.Type != TypeEdible && target.Type != TypeAntipac) {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateConflict
+	}
+
+	changed := make([]PlayerResponse, 0, 2)
+	if playerType == TypeAntipac {
+		for otherID, other := range p.players {
+			if otherID == targetID || other.Type != TypeAntipac {
+				continue
+			}
+			other.Type = TypeGhost
+			changed = append(changed, newPlayerResponse(otherID, other))
+		}
+	}
+	if target.Type != playerType {
+		target.Type = playerType
+		changed = append(changed, newPlayerResponse(targetID, target))
+	}
+	p.mutex.Unlock()
+
+	for _, response := range changed {
+		p.notify(response)
+	}
+	return changed, LeaderUpdateOK
+}
+
+// ResetNonLeaders changes every non-leader role to Ghost and returns the
+// affected players. Generic and specialized leaders are preserved.
+func (p *Players) ResetNonLeaders() []PlayerResponse {
+	p.mutex.Lock()
+	changed := make([]PlayerResponse, 0)
+	for ID, player := range p.players {
+		if IsLeaderType(player.Type) || player.Type == TypeGhost {
+			continue
+		}
+		player.Type = TypeGhost
+		changed = append(changed, newPlayerResponse(ID, player))
+	}
+	p.mutex.Unlock()
+	for _, response := range changed {
+		p.notify(response)
+	}
+	return changed
+}
+
+// LeaderState returns an authorization-checked, consistent leader panel
+// snapshot. All leader roles are excluded from the player list.
+func (p *Players) LeaderState(ID PlayerID) (PlayerResponse, []PlayerResponse, bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	leader, found := p.players[ID]
+	if !found || !IsLeaderType(leader.Type) {
+		return PlayerResponse{}, nil, false
+	}
+	players := make([]PlayerResponse, 0, len(p.players)-1)
+	for playerID, player := range p.players {
+		if IsLeaderType(player.Type) {
+			continue
+		}
+		players = append(players, newPlayerResponse(playerID, player))
+	}
+	return newPlayerResponse(ID, leader), players, true
 }
 
 // /api/player/*
@@ -218,7 +383,7 @@ func (p *Players) ServeList(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/player/register
-// JSON "type": type of user
+// JSON "name": player display name
 func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, http.StatusMethodNotAllowed)
@@ -231,29 +396,8 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBodyAllowUnknownFields(w, r, &request) {
 		return
 	}
-	if request.Type == nil {
-		writeJSONError(w, http.StatusBadRequest)
-		return
-	}
-
-	t := *request.Type
 	name := request.Name
-	var ID PlayerID
-
-	if t < TypePlayer || t > TypeLeader { // admins register separately
-		writeJSONError(w, http.StatusBadRequest)
-		return
-	}
-
-	switch t {
-	case TypeLeader:
-		// register leader as a player watcher;
-		// remains invalid until admin changes type to leader.
-		ID = p.New(TypePlayer, name, RepsNothing, StatusDisc)
-	default:
-		// register player into the game
-		ID = p.New(TypePlayer, name, RepsNothing, StatusDisc)
-	}
+	ID := p.New(TypeGhost, name, StatusDisc)
 
 	player := p.Get(ID)
 	if player == nil {
@@ -261,8 +405,8 @@ func (p *Players) ServeRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Players\tServeRegister (/api/player/register/):\tRegistered ID %q (%q) as %s representing %s.\n",
-		ID, player.Name, TypeString(player.Type), RepsString(player.Reps))
+	fmt.Printf("Players\tServeRegister (/api/player/register/):\tRegistered ID %q (%q) as %s.\n",
+		ID, player.Name, TypeString(player.Type))
 
 	writeJSON(w, http.StatusOK, PlayerRegistrationResponse{ID: ID})
 }

@@ -20,13 +20,13 @@ type AdminRegistrationRequest struct {
 }
 
 type AdminUpdateRequest struct {
-	Type *int `json:"type"`
-	Reps *int `json:"reps"`
+	Type *PlayerType `json:"type"`
 }
 
 type Admin struct {
 	players     *Players
 	sockets     *Sockets
+	game        *Game
 	connections map[adminSocketConnection]struct{}
 
 	password    string
@@ -37,7 +37,7 @@ type Admin struct {
 	socketMutex sync.Mutex
 }
 
-func (a *Admin) Init(players *Players, sockets *Sockets, password string) {
+func (a *Admin) Init(players *Players, sockets *Sockets, password string, games ...*Game) {
 	a.players = players
 	a.sockets = sockets
 	a.password = password
@@ -45,7 +45,10 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string) {
 	a.name = ""
 	a.registered = false
 	a.connections = make(map[adminSocketConnection]struct{})
-	players.SetObserver(a.BroadcastPlayer)
+	if len(games) > 0 {
+		a.game = games[0]
+	}
+	players.AddObserver(a.BroadcastPlayer)
 
 	fmt.Print("Admin handler initialized.\n")
 }
@@ -97,11 +100,33 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeRegister(w, r)
 	case requestPath == "ws":
 		a.ServeSocket(w, r)
+	case requestPath == "map/ws":
+		a.ServeMapSocket(w, r)
+	case requestPath == "reset":
+		a.ServeReset(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
+}
+
+// POST /api/admin/reset resets all non-leaders and shared flag state.
+func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+	changed := a.players.ResetNonLeaders()
+	a.sockets.ClearOfflineLocations()
+	for _, player := range changed {
+		if player.Status == StatusConn {
+			a.sockets.Inform(player.ID)
+		}
+	}
+	if a.game != nil {
+		a.game.SetFlagFound(false)
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // POST /api/admin/register
@@ -148,7 +173,6 @@ func (a *Admin) ServeRegister(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/admin/update/<ID>
 // JSON "type": new player type
-// JSON "reps": new player representation
 func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
@@ -158,34 +182,21 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSONBody(w, r, &request) {
 		return
 	}
-	if request.Type == nil || request.Reps == nil {
-		writeJSONError(w, http.StatusBadRequest)
-		return
-	}
-
-	playerType := *request.Type
-	representation := *request.Reps
-	validPlayerType := playerType == TypePlayer || playerType == TypeLeader || playerType == TypeHidden
-	if !validPlayerType || representation < RepsNothing || representation > RepsEdible {
+	if request.Type == nil || !request.Type.Valid() {
 		writeJSONError(w, http.StatusBadRequest)
 		return
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/update/"))
-	found, connected := a.players.UpdateConnected(
-		targetID,
-		uint64(playerType),
-		uint64(representation),
-	)
+	_, demotedPlayers, found := a.players.Update(targetID, *request.Type)
 	if !found {
 		writeJSONError(w, http.StatusNotFound)
 		return
 	}
-	if !connected {
-		writeJSONError(w, http.StatusConflict)
-		return
+	for _, demotedPlayer := range demotedPlayers {
+		a.sockets.Inform(demotedPlayer.ID)
 	}
-
 	a.sockets.Inform(targetID)
+
 	w.WriteHeader(http.StatusNoContent)
 }

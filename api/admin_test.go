@@ -112,18 +112,17 @@ func TestAdminRegistrationRejectsWrongPasswordAndAllowsSessionRenewal(t *testing
 func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
-	playerID := players.New(TypePlayer, "Player", RepsGhost, StatusConn)
+	playerID := players.New(TypeGhost, "Player", StatusConn)
 	gameConnection := newTestConnection(playerID)
 	admin.sockets.hub.registerConnection(gameConnection)
 	_ = receiveTestMessage(t, gameConnection) // initial player snapshot
 
-	playerType := TypeLeader
-	representation := RepsEdible
+	playerType := TypeEdible
 	request := newJSONRequest(
 		t,
 		http.MethodPost,
 		"/api/admin/update/"+string(playerID),
-		AdminUpdateRequest{Type: &playerType, Reps: &representation},
+		AdminUpdateRequest{Type: &playerType},
 	)
 	request.AddCookie(cookie)
 	response := httptest.NewRecorder()
@@ -133,34 +132,166 @@ func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 		t.Fatalf("authorized update status = %d, want %d", response.Code, http.StatusNoContent)
 	}
 	player := players.Get(playerID)
-	if player.Type != TypeLeader || player.Reps != RepsEdible {
-		t.Errorf("updated player = type %d reps %d, want type %d reps %d", player.Type, player.Reps, TypeLeader, RepsEdible)
+	if player.Type != TypeEdible {
+		t.Errorf("updated player type = %d, want %d", player.Type, TypeEdible)
 	}
 
 	updatedPlayer := informPlayer(t, receiveTestMessage(t, gameConnection))
-	if updatedPlayer.ID != playerID || updatedPlayer.Type != TypeLeader || updatedPlayer.Reps != RepsEdible {
+	if updatedPlayer.ID != playerID || updatedPlayer.Type != TypeEdible {
 		t.Errorf("informed player = %#v, want updated player %q", updatedPlayer, playerID)
 	}
 }
 
-func TestAdminUpdateRejectsDisconnectedPlayer(t *testing.T) {
+func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	for _, playerType := range []PlayerType{TypeLeader, TypeAntiPacLeader, TypeFlagLeader} {
+		players.New(playerType, TypeString(playerType), StatusDisc)
+	}
+	for _, playerType := range []PlayerType{TypePacman, TypeAntipac, TypeEdible, TypeHidden} {
+		players.New(playerType, TypeString(playerType), StatusDisc)
+	}
+	game.SetFlagFound(true)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("reset status = %d, want 204", response.Code)
+	}
+	if game.State().IsFlagFound {
+		t.Error("flag remains found after reset")
+	}
+	for _, player := range players.List() {
+		if !IsLeaderType(player.Type) && player.Type != TypeGhost {
+			t.Errorf("non-leader after reset = %#v", player)
+		}
+	}
+}
+
+func TestAdminResetClearsOfflineLocationsButPreservesActiveCoordinates(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+
+	activeID := players.New(TypeLeader, "Active", StatusDisc)
+	offlineID := players.New(TypeFlagLeader, "Offline", StatusDisc)
+	active := newTestConnection(activeID)
+	sockets.hub.registerConnection(active)
+	drainTestMessages(active)
+	activeCoordinate := Coordinate{Latitude: 49.275, Longitude: -122.905}
+	offlineCoordinate := Coordinate{Latitude: 49.276, Longitude: -122.906}
+	sockets.hub.coordinates[activeID] = activeCoordinate
+	sockets.hub.offlineCoordinates[offlineID] = offlineCoordinate
+
+	viewer := newTestViewerConnection()
+	sockets.hub.registerConnection(viewer)
+	drainTestMessages(viewer)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("reset status = %d, want 204", response.Code)
+	}
+	if len(sockets.hub.offlineCoordinates) != 0 {
+		t.Errorf("offline coordinates after reset = %#v", sockets.hub.offlineCoordinates)
+	}
+	if coordinate := sockets.hub.coordinates[activeID]; coordinate != activeCoordinate {
+		t.Errorf("active coordinate after reset = %#v, want %#v", coordinate, activeCoordinate)
+	}
+	message := receiveTestMessage(t, viewer)
+	if message.Command != CMD_REMOVE || message.Data != string(offlineID) {
+		t.Errorf("Admin reset location removal = %#v", message)
+	}
+}
+
+func TestAdminSelectingPacmanDemotesAndBroadcastsExistingPacman(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
-	playerID := players.New(TypePlayer, "Player", RepsGhost, StatusDisc)
-	playerType := TypeLeader
-	representation := RepsEdible
+	existingPacmanID := players.New(TypePacman, "Existing", StatusDisc)
+	targetID := players.New(TypeGhost, "Target", StatusDisc)
+
+	existingConnection := newTestConnection(existingPacmanID)
+	targetConnection := newTestConnection(targetID)
+	admin.sockets.hub.registerConnection(existingConnection)
+	admin.sockets.hub.registerConnection(targetConnection)
+	drainTestMessages(existingConnection)
+	drainTestMessages(targetConnection)
+
+	playerType := TypePacman
 	request := newJSONRequest(
 		t,
 		http.MethodPost,
-		"/api/admin/update/"+string(playerID),
-		AdminUpdateRequest{Type: &playerType, Reps: &representation},
+		"/api/admin/update/"+string(targetID),
+		AdminUpdateRequest{Type: &playerType},
 	)
 	request.AddCookie(cookie)
 	response := httptest.NewRecorder()
 	admin.ServeHTTP(response, request)
 
-	if response.Code != http.StatusConflict {
-		t.Errorf("disconnected update status = %d, want %d", response.Code, http.StatusConflict)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Pacman update status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if player := players.Get(existingPacmanID); player == nil || player.Type != TypeGhost {
+		t.Errorf("existing Pacman = %#v, want Ghost", player)
+	}
+	if player := players.Get(targetID); player == nil || player.Type != TypePacman {
+		t.Errorf("selected player = %#v, want Pacman", player)
+	}
+
+	for _, connection := range []*Conn{existingConnection, targetConnection} {
+		informedTypes := make(map[PlayerID]PlayerType)
+		for range 2 {
+			informed := informPlayer(t, receiveTestMessage(t, connection))
+			informedTypes[informed.ID] = informed.Type
+		}
+		if informedTypes[existingPacmanID] != TypeGhost || informedTypes[targetID] != TypePacman {
+			t.Errorf("broadcast types = %#v, want existing Ghost and target Pacman", informedTypes)
+		}
+	}
+}
+
+func TestAdminUpdateChangesDisconnectedPlayerWithoutGameBroadcast(t *testing.T) {
+	players, admin := newAdminTestState(t, "top-secret")
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	activePlayerID := players.New(TypePacman, "Active", StatusDisc)
+	activeConnection := newTestConnection(activePlayerID)
+	admin.sockets.hub.registerConnection(activeConnection)
+	drainTestMessages(activeConnection)
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	playerType := TypeLeader
+	request := newJSONRequest(
+		t,
+		http.MethodPost,
+		"/api/admin/update/"+string(playerID),
+		AdminUpdateRequest{Type: &playerType},
+	)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Errorf("disconnected update status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if player := players.Get(playerID); player == nil || player.Type != TypeLeader {
+		t.Errorf("disconnected player = %#v, want Leader type", player)
+	}
+	if len(activeConnection.send) != 0 {
+		t.Error("disconnected player type was broadcast to the game hub")
 	}
 }
 
@@ -183,6 +314,32 @@ func TestAdminSocketRequiresAuthenticationBeforeUpgrade(t *testing.T) {
 	}
 }
 
+func TestAdminMapSocketRequiresAuthenticationBeforeUpgrade(t *testing.T) {
+	_, admin := newAdminTestState(t, "top-secret")
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/map/ws", nil)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized map socket status = %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+
+	methodRequest := httptest.NewRequest(http.MethodPost, "/api/admin/map/ws", nil)
+	methodResponse := httptest.NewRecorder()
+	admin.ServeHTTP(methodResponse, methodRequest)
+	if methodResponse.Code != http.StatusMethodNotAllowed {
+		t.Errorf("map socket POST status = %d, want %d", methodResponse.Code, http.StatusMethodNotAllowed)
+	}
+
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	authorizedRequest := httptest.NewRequest(http.MethodGet, "/api/admin/map/ws", nil)
+	authorizedRequest.AddCookie(cookie)
+	authorizedResponse := httptest.NewRecorder()
+	admin.ServeHTTP(authorizedResponse, authorizedRequest)
+	if authorizedResponse.Code != http.StatusBadRequest {
+		t.Errorf("authenticated non-upgrade map status = %d, want %d", authorizedResponse.Code, http.StatusBadRequest)
+	}
+}
+
 func TestAdminSocketReceivesPlayerRegistrationAndStatus(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	connection := new(recordingAdminConnection)
@@ -191,7 +348,7 @@ func TestAdminSocketReceivesPlayerRegistrationAndStatus(t *testing.T) {
 	}
 	defer admin.removeConnection(connection)
 
-	playerID := players.New(TypePlayer, "Test", RepsNothing, StatusDisc)
+	playerID := players.New(TypeGhost, "Test", StatusDisc)
 	players.SetStatus(playerID, StatusConn)
 
 	if len(connection.messages) != 3 {
@@ -209,7 +366,8 @@ func TestAdminSocketReceivesPlayerRegistrationAndStatus(t *testing.T) {
 		t.Fatalf("decode registration update: %v", err)
 	}
 	if registered.Event != AdminEventUpsert || registered.Player == nil ||
-		registered.Player.ID != playerID || registered.Player.Status != StatusDisc {
+		registered.Player.ID != playerID || registered.Player.Status != StatusDisc ||
+		registered.Player.Type != TypeGhost {
 		t.Errorf("registration update = %#v", registered)
 	}
 	var connected AdminSocketMessage
@@ -221,13 +379,12 @@ func TestAdminSocketReceivesPlayerRegistrationAndStatus(t *testing.T) {
 	}
 }
 
-func TestAdminUpdateRequiresCookieAndRejectsAdminPlayerType(t *testing.T) {
+func TestAdminUpdateRequiresCookieAndRejectsInvalidType(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
-	playerID := players.New(TypePlayer, "Player", RepsNothing, StatusDisc)
-	playerType := TypeAdmin
-	representation := RepsNothing
-	requestBody := AdminUpdateRequest{Type: &playerType, Reps: &representation}
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	invalidType := PlayerType(99)
+	requestBody := AdminUpdateRequest{Type: &invalidType}
 
 	unauthorizedRequest := newJSONRequest(
 		t,
@@ -241,16 +398,45 @@ func TestAdminUpdateRequiresCookieAndRejectsAdminPlayerType(t *testing.T) {
 		t.Errorf("update without cookie status = %d, want %d", unauthorizedResponse.Code, http.StatusUnauthorized)
 	}
 
-	adminTypeRequest := newJSONRequest(
+	invalidTypeRequest := newJSONRequest(
 		t,
 		http.MethodPost,
 		"/api/admin/update/"+string(playerID),
 		requestBody,
 	)
-	adminTypeRequest.AddCookie(cookie)
-	adminTypeResponse := httptest.NewRecorder()
-	admin.ServeHTTP(adminTypeResponse, adminTypeRequest)
-	if adminTypeResponse.Code != http.StatusBadRequest {
-		t.Errorf("admin player type status = %d, want %d", adminTypeResponse.Code, http.StatusBadRequest)
+	invalidTypeRequest.AddCookie(cookie)
+	invalidTypeResponse := httptest.NewRecorder()
+	admin.ServeHTTP(invalidTypeResponse, invalidTypeRequest)
+	if invalidTypeResponse.Code != http.StatusBadRequest {
+		t.Errorf("invalid type status = %d, want %d", invalidTypeResponse.Code, http.StatusBadRequest)
+	}
+}
+
+func TestAdminUpdateAcceptsEveryPlayerType(t *testing.T) {
+	players, admin := newAdminTestState(t, "top-secret")
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	playerTypes := []PlayerType{
+		TypeHidden,
+		TypePacman,
+		TypeAntipac,
+		TypeGhost,
+		TypeEdible,
+		TypeLeader,
+	}
+
+	for _, playerType := range playerTypes {
+		request := newJSONRequest(
+			t,
+			http.MethodPost,
+			"/api/admin/update/"+string(playerID),
+			AdminUpdateRequest{Type: &playerType},
+		)
+		request.AddCookie(cookie)
+		response := httptest.NewRecorder()
+		admin.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Errorf("type %d status = %d, want %d", playerType, response.Code, http.StatusNoContent)
+		}
 	}
 }

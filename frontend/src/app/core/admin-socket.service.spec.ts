@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 
 import { AdminSocketService } from './admin-socket.service';
 import { PAC_WINDOW } from './browser-window.token';
-import { PlayerStatus } from './game.models';
+import { PlayerStatus, PlayerType } from './game.models';
 
 class MockAdminWebSocket extends EventTarget {
   static readonly CONNECTING = 0;
@@ -69,6 +69,7 @@ describe('AdminSocketService', () => {
 
     expect(socket.sent).toEqual([]);
     expect(service.state()).toBe('connected');
+    expect(service.status()).toBe('Connected');
   });
 
   it('loads the initial snapshot and applies player join and disconnect updates', () => {
@@ -78,19 +79,36 @@ describe('AdminSocketService', () => {
     socket.message(
       JSON.stringify({
         event: 'snapshot',
-        players: [{ id: 'BBBB', type: 0, name: 'Test', reps: 0, status: PlayerStatus.Connected }],
+        players: [
+          {
+            id: 'BBBB',
+            name: 'Test',
+            type: PlayerType.Ghost,
+            status: PlayerStatus.Connected,
+          },
+        ],
       }),
     );
     socket.message(
       JSON.stringify({
         event: 'upsert',
-        player: { id: 'AAAA', type: 0, name: 'Test2', reps: 0, status: PlayerStatus.Connected },
+        player: {
+          id: 'AAAA',
+          name: 'Test2',
+          type: PlayerType.Leader,
+          status: PlayerStatus.Connected,
+        },
       }),
     );
     socket.message(
       JSON.stringify({
         event: 'upsert',
-        player: { id: 'BBBB', type: 0, name: 'Test', reps: 0, status: PlayerStatus.Disconnected },
+        player: {
+          id: 'BBBB',
+          name: 'Test',
+          type: PlayerType.Edible,
+          status: PlayerStatus.Disconnected,
+        },
       }),
     );
 
@@ -103,6 +121,7 @@ describe('AdminSocketService', () => {
     expect(service.players().find((player) => player.id === 'BBBB')?.status).toBe(
       PlayerStatus.Disconnected,
     );
+    expect(service.players().find((player) => player.id === 'BBBB')?.type).toBe(PlayerType.Edible);
   });
 
   it('ignores malformed server frames', () => {
@@ -113,5 +132,19 @@ describe('AdminSocketService', () => {
 
     expect(service.players()).toEqual([]);
     expect(service.status()).toContain('invalid');
+  });
+
+  it('rejects snapshots containing an invalid player type', () => {
+    service.start();
+    const socket = MockAdminWebSocket.instances[0];
+    socket.open();
+    socket.message(
+      JSON.stringify({
+        event: 'snapshot',
+        players: [{ id: 'AAAA', name: 'Test', type: 99, status: PlayerStatus.Connected }],
+      }),
+    );
+
+    expect(service.players()).toEqual([]);
   });
 });

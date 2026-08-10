@@ -13,23 +13,24 @@ import (
 	ws "github.com/gorilla/websocket"
 )
 
+type PlayerType uint64
+
 const (
 	// commands
 	CMD_MOVE   = "move"   // on player movement
 	CMD_INFORM = "inform" // inform another player change/connection
+	CMD_REMOVE = "remove" // remove a player marker without disclosing a location
+	CMD_STATE  = "state"  // inform clients of shared game state
 
-	// user type
-	TypePlayer = 0 // zero-value; player
-	TypeLeader = 1
-	TypeAdmin  = 2
-	TypeHidden = 3 // for /api/admin/update/<ID>
-
-	// player represents
-	RepsNothing = 0 // zero-value; do not display on map
-	RepsPacman  = 1
-	RepsAnti    = 2 // anti-pacman; can consume pacman
-	RepsGhost   = 3 // all ghosts are the same
-	RepsEdible  = 4
+	// player type
+	TypeHidden        PlayerType = 0
+	TypePacman        PlayerType = 1
+	TypeAntipac       PlayerType = 2
+	TypeGhost         PlayerType = 3
+	TypeEdible        PlayerType = 4
+	TypeLeader        PlayerType = 5
+	TypeAntiPacLeader PlayerType = 6
+	TypeFlagLeader    PlayerType = 7
 
 	// user status
 	StatusGone = 0 // zero-value; out-of-game
@@ -140,36 +141,49 @@ type Message struct {
 	Data    string     `json:"data"`
 }
 
-func TypeString(t uint64) string {
-	switch t {
-	case TypePlayer:
-		return "Player"
-	case TypeLeader:
-		return "Leader"
-	case TypeAdmin:
-		return "Admin"
+func (playerType PlayerType) Valid() bool {
+	switch playerType {
+	case TypeHidden,
+		TypePacman,
+		TypeAntipac,
+		TypeGhost,
+		TypeEdible,
+		TypeLeader,
+		TypeAntiPacLeader,
+		TypeFlagLeader:
+		return true
+	default:
+		return false
+	}
+}
+
+func TypeString(playerType PlayerType) string {
+	switch playerType {
 	case TypeHidden:
 		return "Hidden"
+	case TypePacman:
+		return "Pacman"
+	case TypeAntipac:
+		return "Antipac"
+	case TypeGhost:
+		return "Ghost"
+	case TypeEdible:
+		return "Edible"
+	case TypeLeader:
+		return "Leader"
+	case TypeAntiPacLeader:
+		return "AntiPac Leader"
+	case TypeFlagLeader:
+		return "Flag Leader"
 	default:
 		return "Error"
 	}
 }
 
-func RepsString(r uint64) string {
-	switch r {
-	case RepsNothing:
-		return "Nothing"
-	case RepsPacman:
-		return "Pacman"
-	case RepsAnti:
-		return "Antipac"
-	case RepsGhost:
-		return "Ghost"
-	case RepsEdible:
-		return "Edible"
-	default:
-		return "Error"
-	}
+func IsLeaderType(playerType PlayerType) bool {
+	return playerType == TypeLeader ||
+		playerType == TypeAntiPacLeader ||
+		playerType == TypeFlagLeader
 }
 
 func min(a, b float64) float64 {

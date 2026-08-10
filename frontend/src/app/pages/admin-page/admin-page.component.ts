@@ -6,23 +6,20 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 
 import { AdminSocketService } from '../../core/admin-socket.service';
 import { ApiService } from '../../core/api.service';
 import {
+  isLeaderType,
   PLAYER_TYPES,
   Player,
   PlayerStatus,
   PlayerType,
-  REPRESENTATIONS,
-  Representation,
 } from '../../core/game.models';
 
 @Component({
   selector: 'pac-admin-page',
-  imports: [FormsModule],
   templateUrl: './admin-page.component.html',
   styleUrl: './admin-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,13 +31,17 @@ export class AdminPageComponent {
 
   protected readonly players = this.adminSocket.players;
   protected readonly connectionStatus = this.adminSocket.status;
-  protected readonly status = signal('Admin authentication is supplied by a secure cookie.');
+  protected readonly status = signal('');
   protected readonly loadingPlayers = signal(false);
+  protected readonly bulkUpdating = signal(false);
   protected readonly playerTypes = PLAYER_TYPES;
-  protected readonly representations = REPRESENTATIONS;
   protected readonly PlayerType = PlayerType;
-  protected readonly hasConnectedPlayers = computed(() =>
-    this.players().some((player) => this.isConnected(player)),
+  private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly updatesInProgress = computed(
+    () => this.bulkUpdating() || this.savingPlayerIds().size > 0,
+  );
+  protected readonly hasConnectedGhosts = computed(() =>
+    this.players().some((player) => this.isConnected(player) && player.type === PlayerType.Ghost),
   );
 
   constructor() {
@@ -65,73 +66,177 @@ export class AdminPageComponent {
     }
   }
 
-  protected setType(playerId: string, type: PlayerType): void {
-    this.players.update((players) =>
-      players.map((player) =>
-        player.id === playerId && this.isConnected(player) ? { ...player, type } : player,
-      ),
+  protected isTypeSelected(player: Player, playerType: PlayerType): boolean {
+    return playerType === PlayerType.Ghost
+      ? player.type === PlayerType.Ghost || player.type === PlayerType.Edible
+      : player.type === playerType;
+  }
+
+  protected isPlayerControlDisabled(player: Player): boolean {
+    return (
+      !this.isConnected(player) || this.bulkUpdating() || this.savingPlayerIds().has(player.id)
     );
   }
 
-  protected setRepresentation(playerId: string, reps: Representation): void {
-    this.players.update((players) =>
-      players.map((player) =>
-        player.id === playerId && this.isConnected(player) ? { ...player, reps } : player,
-      ),
-    );
-  }
-
-  protected async updatePlayer(player: Player): Promise<void> {
-    if (!this.isConnected(player)) {
-      this.status.set(`${player.name} (${player.id}) is offline and cannot be updated.`);
+  protected async updateType(player: Player, playerType: PlayerType, event: Event): Promise<void> {
+    if (this.isPlayerControlDisabled(player) || this.isTypeSelected(player, playerType)) {
       return;
     }
 
+    const radioGroup = (event.currentTarget as HTMLInputElement).closest('.player-types');
     this.status.set(`Updating ${player.id}…`);
+    this.setPlayerSaving(player.id, true);
+    const previousTypes = this.applyLocalTypeSelection(player.id, playerType);
     try {
-      await firstValueFrom(this.api.updatePlayer(player.id, player.type, player.reps));
+      await firstValueFrom(this.api.updatePlayer(player.id, playerType));
       this.status.set(`Updated ${player.name} (${player.id}).`);
     } catch {
+      this.restoreLocalTypes(previousTypes);
+      this.restoreTypeSelection(radioGroup, previousTypes.get(player.id) ?? player.type);
       this.status.set(
         `Could not update ${player.name} (${player.id}). Register as admin in this browser first.`,
       );
+    } finally {
+      this.setPlayerSaving(player.id, false);
     }
   }
 
   protected async makeGhostsEdible(): Promise<void> {
     await this.bulkUpdate(
-      (player) => player.reps === Representation.Ghost,
-      Representation.Edible,
-      'ghosts edible',
+      (player) => this.isConnected(player) && player.type === PlayerType.Ghost,
+      PlayerType.Edible,
+      'connected Ghosts',
     );
   }
 
-  protected async makeAllNothing(): Promise<void> {
-    await this.bulkUpdate(() => true, Representation.Nothing, 'players invisible');
+  protected async resetGame(): Promise<void> {
+    if (this.updatesInProgress()) {
+      return;
+    }
+    this.bulkUpdating.set(true);
+    this.status.set('Resetting the game…');
+    try {
+      await firstValueFrom(this.api.resetGame());
+      this.players.update((players) =>
+        players.map((player) =>
+          isLeaderType(player.type) ? player : { ...player, type: PlayerType.Ghost },
+        ),
+      );
+      this.status.set('Reset the game successfully.');
+    } catch {
+      this.status.set('Could not reset the game. Register as admin in this browser first.');
+    } finally {
+      this.bulkUpdating.set(false);
+    }
   }
 
   private async bulkUpdate(
     predicate: (player: Player) => boolean,
-    reps: Representation,
-    description: string,
+    playerType: PlayerType,
+    targetDescription: string,
   ): Promise<void> {
-    const targets = this.players().filter(
-      (player) => this.isConnected(player) && predicate(player),
-    );
+    if (this.updatesInProgress()) {
+      return;
+    }
+    const targets = this.players().filter(predicate);
     if (!targets.length) {
-      this.status.set(`No players need updating to make ${description}.`);
+      this.status.set(`No ${targetDescription} need updating.`);
       return;
     }
 
+    this.bulkUpdating.set(true);
     this.status.set(`Updating ${targets.length} players…`);
-    const results = await Promise.allSettled(
-      targets.map((player) => firstValueFrom(this.api.updatePlayer(player.id, player.type, reps))),
+    try {
+      const results = await Promise.allSettled(
+        targets.map((player) => firstValueFrom(this.api.updatePlayer(player.id, playerType))),
+      );
+      const succeededIds = new Set(
+        targets
+          .filter((_, index) => results[index].status === 'fulfilled')
+          .map((player) => player.id),
+      );
+      this.updateLocalTypes(succeededIds, playerType);
+      const failed = targets.length - succeededIds.size;
+      this.status.set(
+        failed
+          ? `Updated ${succeededIds.size} of ${targets.length} players; ${failed} failed. Register as admin again if the session expired.`
+          : `Updated ${targets.length} players successfully.`,
+      );
+    } finally {
+      this.bulkUpdating.set(false);
+    }
+  }
+
+  private setPlayerSaving(playerId: string, saving: boolean): void {
+    this.savingPlayerIds.update((playerIds) => {
+      const updated = new Set(playerIds);
+      if (saving) {
+        updated.add(playerId);
+      } else {
+        updated.delete(playerId);
+      }
+      return updated;
+    });
+  }
+
+  private updateLocalTypes(playerIds: ReadonlySet<string>, playerType: PlayerType): void {
+    this.players.update((players) =>
+      players.map((player) =>
+        playerIds.has(player.id) ? { ...player, type: playerType } : player,
+      ),
     );
-    const failed = results.filter((result) => result.status === 'rejected').length;
-    this.status.set(
-      failed
-        ? `Updated ${targets.length - failed} of ${targets.length} players; ${failed} failed. Register as admin again if the session expired.`
-        : `Updated ${targets.length} players successfully.`,
+  }
+
+  private applyLocalTypeSelection(
+    playerId: string,
+    playerType: PlayerType,
+  ): ReadonlyMap<string, PlayerType> {
+    const previousTypes = new Map<string, PlayerType>();
+    this.players.update((players) =>
+      players.map((player) => {
+        if (player.id === playerId) {
+          previousTypes.set(player.id, player.type);
+          return { ...player, type: playerType };
+        }
+        if (this.isUniqueType(playerType) && player.type === playerType) {
+          previousTypes.set(player.id, player.type);
+          return {
+            ...player,
+            type:
+              playerType === PlayerType.AntiPacLeader || playerType === PlayerType.FlagLeader
+                ? PlayerType.Leader
+                : PlayerType.Ghost,
+          };
+        }
+        return player;
+      }),
     );
+    return previousTypes;
+  }
+
+  private isUniqueType(playerType: PlayerType): boolean {
+    return (
+      playerType === PlayerType.Pacman ||
+      playerType === PlayerType.Antipac ||
+      playerType === PlayerType.AntiPacLeader ||
+      playerType === PlayerType.FlagLeader
+    );
+  }
+
+  private restoreLocalTypes(previousTypes: ReadonlyMap<string, PlayerType>): void {
+    this.players.update((players) =>
+      players.map((player) => {
+        const previousType = previousTypes.get(player.id);
+        return previousType === undefined ? player : { ...player, type: previousType };
+      }),
+    );
+  }
+
+  private restoreTypeSelection(radioGroup: Element | null, playerType: PlayerType): void {
+    const selectedType = playerType === PlayerType.Edible ? PlayerType.Ghost : playerType;
+    for (const input of radioGroup?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ??
+      []) {
+      input.checked = Number(input.value) === selectedType;
+    }
   }
 }

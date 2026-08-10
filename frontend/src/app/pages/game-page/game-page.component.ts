@@ -15,7 +15,7 @@ import { PAC_WINDOW } from '../../core/browser-window.token';
 import { CredentialsService } from '../../core/credentials.service';
 import { GameSocketService } from '../../core/game-socket.service';
 import { GeolocationService } from '../../core/geolocation.service';
-import { MapInfo, representationLabel } from '../../core/game.models';
+import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
@@ -43,7 +43,11 @@ export class GamePageComponent {
   protected readonly pageStatus = signal('Loading the game map…');
   protected readonly selfSummary = computed(() => {
     const player = this.socket.players()[this.selfId()]?.player;
-    return player ? `${player.name} (${player.id}) is ${representationLabel(player.reps)}` : '';
+    return player ? `${player.name} (${player.id}) is ${typeLabel(player.type)}` : '';
+  });
+  protected readonly showLeaderLink = computed(() => {
+    const player = this.socket.players()[this.selfId()]?.player;
+    return player ? isLeaderType(player.type) : false;
   });
 
   private readonly onVisibilityChange = () => {
@@ -78,7 +82,9 @@ export class GamePageComponent {
     this.wakeLock.initialize();
 
     try {
-      this.map.set(await firstValueFrom(this.api.getMap()));
+      const map = await firstValueFrom(this.api.getMap());
+      this.map.set(map);
+      this.socket.setInitialState(map);
     } catch {
       this.pageStatus.set(
         'Could not load the PacMacro map. Check the API connection and try again.',

@@ -5,7 +5,7 @@
   color: #111;
 }
 
-.admin-page {
+.leader-page {
   width: min(100% - 2rem, 70rem);
   margin-inline: auto;
   padding-block: 2rem 4rem;
@@ -20,28 +20,49 @@
   text-transform: uppercase;
 }
 
-.admin-status,
-.admin-connection-status {
+.connection-status,
+.action-status {
   min-height: 1.5rem;
   font-weight: 600;
 }
 
-.admin-connection-status {
+.connection-status {
   margin-bottom: 0;
   color: #52525b;
   font-size: 0.875rem;
 }
 
-.admin-actions {
+.leader-actions,
+.player-types {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.leader-actions {
   margin-block: 1rem 1.5rem;
 }
 
-.button-secondary {
+.button-secondary,
+.player-type + label {
   background: #fff;
   color: #111;
+}
+
+.capability-note,
+.flag-control {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.flag-control label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 700;
 }
 
 .player-list {
@@ -51,9 +72,9 @@
 
 .player-card {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) minmax(20rem, 4fr);
+  grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 4fr);
   gap: 1rem;
-  align-items: end;
+  align-items: center;
   padding: 1rem;
   border: 1px solid #d4d4d8;
   border-radius: 0.5rem;
@@ -65,25 +86,15 @@
   opacity: 0.7;
 }
 
-.player-card--offline .player-card__identity span {
-  color: #8a8a91;
-}
-
 .player-card__identity {
   display: grid;
   gap: 0.25rem;
 }
 
-.player-card__identity span {
+.player-card__identity span,
+.player-card__role {
   color: #666;
   font-size: 0.8rem;
-}
-
-.player-types {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .player-card__status {
@@ -109,13 +120,12 @@
 .player-type + label {
   display: inline-flex;
   align-items: center;
-  background-color: white;
-  color: black;
 }
 
-.player-type:not(:disabled) + label:hover {
-  color: white;
-  background-color: black;
+.player-type:not(:disabled) + label:hover,
+.player-type:checked + label {
+  background: #111;
+  color: #fff;
 }
 
 .player-type:focus-visible + label {
@@ -123,15 +133,9 @@
   outline-offset: 0.15rem;
 }
 
-.player-type:checked + label {
-  background-color: black;
-  color: white;
-}
-
 .player-type:disabled + label {
-  opacity: 0.55;
   cursor: not-allowed;
-  pointer-events: none;
+  opacity: 0.55;
 }
 
 @media (max-width: 48rem) {

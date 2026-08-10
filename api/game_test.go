@@ -44,6 +44,24 @@ func TestMapUsesJSONObjectResponse(t *testing.T) {
 			game.Height,
 		)
 	}
+	if body.IsFlagFound {
+		t.Error("initial map state has isFlagFound true")
+	}
+}
+
+func TestGameFlagStateIsSynchronizedAndIdempotent(t *testing.T) {
+	game := new(Game)
+	updates := make([]GameState, 0)
+	game.AddObserver(func(state GameState) { updates = append(updates, state) })
+	if !game.SetFlagFound(true) {
+		t.Fatal("first flag update reported unchanged")
+	}
+	if game.SetFlagFound(true) {
+		t.Fatal("idempotent flag update reported changed")
+	}
+	if len(updates) != 1 || !updates[0].IsFlagFound || !game.Snapshot().IsFlagFound {
+		t.Errorf("updates = %#v, snapshot = %#v", updates, game.Snapshot())
+	}
 }
 
 func TestGameInitUsesEnvironmentBounds(t *testing.T) {

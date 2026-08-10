@@ -1,7 +1,7 @@
 import { DestroyRef, inject, Service, signal } from '@angular/core';
 
 import { PAC_WINDOW } from './browser-window.token';
-import { AdminSocketMessage, Player } from './game.models';
+import { AdminSocketMessage, isPlayerStatus, isPlayerType, Player } from './game.models';
 
 export type AdminSocketState = 'idle' | 'connecting' | 'connected' | 'offline' | 'error';
 
@@ -90,7 +90,7 @@ export class AdminSocketService {
       this.players.set([]);
       this.reconnectAttempt = 0;
       this.state.set('connected');
-      this.status.set('Live player updates connected.');
+      this.status.set('Connected');
     });
     socket.addEventListener('message', (event) => this.handleMessage(event));
     socket.addEventListener('error', () => {
@@ -187,8 +187,7 @@ function isPlayer(value: unknown): value is Player {
   return (
     typeof player.id === 'string' &&
     typeof player.name === 'string' &&
-    Number.isInteger(player.type) &&
-    Number.isInteger(player.reps) &&
-    Number.isInteger(player.status)
+    isPlayerType(player.type) &&
+    isPlayerStatus(player.status)
   );
 }

@@ -1,0 +1,19 @@
+<pac-brand-header />
+
+<main class="game-page admin-map-page">
+  <h1>PacMacro</h1>
+
+  <div class="game-page__status" role="status" aria-live="polite">
+    <p>{{ pageStatus() }}</p>
+    <p>{{ socket.status() }}</p>
+  </div>
+
+  @if (map(); as gameMap) {
+    <pac-game-canvas
+      [map]="gameMap"
+      [players]="socket.players()"
+      selfId=""
+      [isFlagFound]="socket.isFlagFound()"
+    />
+  }
+</main>

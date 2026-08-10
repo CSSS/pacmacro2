@@ -3,11 +3,11 @@ import { inject, Service } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import {
+  LeaderState,
   MapInfo,
   Player,
   PlayerRegistrationResponse,
   PlayerType,
-  Representation,
 } from './game.models';
 
 @Service()
@@ -18,9 +18,8 @@ export class ApiService {
     return this.http.get<MapInfo>('/api/game/map.json');
   }
 
-  registerPlayer(type: PlayerType, name: string): Observable<PlayerRegistrationResponse> {
+  registerPlayer(name: string): Observable<PlayerRegistrationResponse> {
     return this.http.post<PlayerRegistrationResponse>('/api/player/register', {
-      type,
       name,
     });
   }
@@ -37,13 +36,33 @@ export class ApiService {
     return this.http.get<Player[]>('/api/player/list.json');
   }
 
-  updatePlayer(playerId: string, type: PlayerType, reps: Representation): Observable<void> {
+  updatePlayer(playerId: string, playerType: PlayerType): Observable<void> {
     return this.http.post<void>(
       `/api/admin/update/${encodeURIComponent(playerId)}`,
-      { type, reps },
+      { type: playerType },
       {
         withCredentials: true,
       },
     );
+  }
+
+  resetGame(): Observable<void> {
+    return this.http.post<void>('/api/admin/reset', null, { withCredentials: true });
+  }
+
+  getLeaderState(): Observable<LeaderState> {
+    return this.http.get<LeaderState>('/api/leader/state.json', { withCredentials: true });
+  }
+
+  updateLeaderPlayer(playerId: string, playerType: PlayerType): Observable<void> {
+    return this.http.post<void>(
+      `/api/leader/update/${encodeURIComponent(playerId)}`,
+      { type: playerType },
+      { withCredentials: true },
+    );
+  }
+
+  updateFlag(isFlagFound: boolean): Observable<void> {
+    return this.http.post<void>('/api/leader/flag', { isFlagFound }, { withCredentials: true });
   }
 }

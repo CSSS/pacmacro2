@@ -14,11 +14,11 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
-import { PlayerType } from '../../core/game.models';
+import { RegistrationKind } from '../../core/game.models';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
 
 interface RegistrationModel {
-  playerType: string;
+  registrationKind: RegistrationKind;
   name: string;
   adminPassword: string;
 }
@@ -36,31 +36,28 @@ export class RegisterPageComponent {
   private readonly router = inject(Router);
 
   protected readonly registrationModel = signal<RegistrationModel>({
-    playerType: String(PlayerType.Player),
+    registrationKind: RegistrationKind.Player,
     name: '',
     adminPassword: '',
   });
 
   protected readonly registrationForm = form(this.registrationModel, (registration) => {
-    required(registration.playerType);
+    required(registration.registrationKind);
     required(registration.name, { message: 'Enter your name.' });
     pattern(registration.name, /\S/, { message: 'Enter your name.' });
     maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
     hidden(registration.adminPassword, {
-      when: ({ valueOf }) => Number(valueOf(registration.playerType)) !== PlayerType.Admin,
+      when: ({ valueOf }) => valueOf(registration.registrationKind) !== RegistrationKind.Admin,
     });
     required(registration.adminPassword, {
       message: 'Enter the administrator password.',
-      when: ({ valueOf }) => Number(valueOf(registration.playerType)) === PlayerType.Admin,
+      when: ({ valueOf }) => valueOf(registration.registrationKind) === RegistrationKind.Admin,
     });
   });
 
   protected readonly status = signal('');
 
-  /**
-   * For the player type dropdown.
-   */
-  protected readonly playerTypeOptions = PlayerType;
+  protected readonly registrationKinds = RegistrationKind;
 
   protected async submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -74,19 +71,18 @@ export class RegisterPageComponent {
   }
 
   private async register(): Promise<void> {
-    const { playerType, name, adminPassword } = this.registrationForm().value();
-    const registrationType = Number(playerType) as PlayerType;
+    const { registrationKind, name, adminPassword } = this.registrationForm().value();
     const trimmedName = name.trim();
     this.status.set('Registering...');
 
     try {
-      if (registrationType === PlayerType.Admin) {
+      if (registrationKind === RegistrationKind.Admin) {
         await firstValueFrom(this.api.registerAdmin(trimmedName, adminPassword));
         await this.router.navigateByUrl('/admin');
         return;
       }
 
-      const response = await firstValueFrom(this.api.registerPlayer(registrationType, trimmedName));
+      const response = await firstValueFrom(this.api.registerPlayer(trimmedName));
       const id = response.id.trim();
       if (!id) {
         throw new Error('The API returned an empty player ID.');
