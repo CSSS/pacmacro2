@@ -9,13 +9,19 @@ This version of PacMacro consists of a **Go API** accessed under `/api` and two 
 
 ## Deployment
 
-The backend requires `ADMIN_PASSWORD`. For local development, add it to the ignored `.env` file in the repository root (see `.env.example`):
+The backend requires `ADMIN_PASSWORD` and the map bounds shown below.
+For local development, add them to the ignored `.env` file in the repository root (see `.env.example`):
 
 ```dotenv
 ADMIN_PASSWORD=replace-with-a-long-random-password
+# These are the boundaries for UniverCity
+MIN_LAT=49.27462710773634
+MIN_LON=-122.91628624024605
+MAX_LAT=49.28099313727333
+MAX_LON=-122.90273076431673
 ```
 
-The binary loads `.env` from its working directory when present. For the production systemd service, put the same setting in `/etc/pacmacro/pacmacro.env` and retain this service setting:
+The binary loads `.env` from its working directory when present. For the production systemd service, put the same variables in `/etc/pacmacro/pacmacro.env` and retain this service setting:
 
 ```systemd
 EnvironmentFile=/etc/pacmacro/pacmacro.env
@@ -35,7 +41,7 @@ Install the GoLang toolchain and run `go build -o pacmacro`.
 ### Backend
 
 To build the PacMacro server, run `go build -o pacmacro .` from the root directory.
-The backend refuses to start when `ADMIN_PASSWORD` is missing.
+The backend refuses to start when `ADMIN_PASSWORD` or any map bound is missing or invalid.
 
 ### Frontend
 

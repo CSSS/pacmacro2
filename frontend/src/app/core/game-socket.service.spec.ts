@@ -72,6 +72,25 @@ describe('GameSocketService', () => {
     expect(service.state()).toBe('connected');
   });
 
+  it('stays active while the game tab is hidden', () => {
+    const originalVisibilityState = Object.getOwnPropertyDescriptor(document, 'visibilityState');
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+
+    try {
+      service.start('ABCD', () => undefined);
+
+      expect(MockWebSocket.instances).toHaveLength(1);
+      MockWebSocket.instances[0].open();
+      expect(service.state()).toBe('connected');
+    } finally {
+      if (originalVisibilityState) {
+        Object.defineProperty(document, 'visibilityState', originalVisibilityState);
+      } else {
+        Reflect.deleteProperty(document, 'visibilityState');
+      }
+    }
+  });
+
   it('accepts inform and move messages without unsafe rendering', () => {
     service.start('ABCD', () => undefined);
     const socket = MockWebSocket.instances[0];

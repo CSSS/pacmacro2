@@ -52,8 +52,10 @@ func main() {
 		sock    api.Sockets
 	)
 
-	players.Init()                             // initialize players handler
-	game.Init(&players)                        // initialize game handler
+	players.Init() // initialize players handler
+	if err := game.Init(&players); err != nil {
+		log.Fatalf("initialize game: %v", err)
+	}
 	sock.Init(&players)                        // initialize sockets handler
 	admin.Init(&players, &sock, adminPassword) // initialize admin handler
 

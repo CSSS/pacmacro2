@@ -41,12 +41,6 @@ export class GameSocketService {
       this.status.set('Offline. Waiting for a network connection…');
       return;
     }
-    if (this.browserWindow.document.visibilityState === 'hidden') {
-      this.state.set('suspended');
-      this.status.set('Paused while the page is hidden.');
-      return;
-    }
-
     this.intentionallyClosed = false;
     this.connect();
   }
@@ -115,7 +109,7 @@ export class GameSocketService {
         return;
       }
       // A reconnect receives a fresh list of active players from the server.
-      // Clear missed disconnects from a period where this page was sleeping.
+      // Clear missed disconnects from a period when this connection was unavailable.
       this.players.set({});
       this.reconnectAttempt = 0;
       this.state.set('connected');
@@ -150,12 +144,6 @@ export class GameSocketService {
       this.status.set('Offline. Waiting for a network connection…');
       return;
     }
-    if (this.browserWindow.document.visibilityState === 'hidden') {
-      this.state.set('suspended');
-      this.status.set('Paused while the page is hidden.');
-      return;
-    }
-
     const delay = RECONNECT_DELAYS[Math.min(this.reconnectAttempt, RECONNECT_DELAYS.length - 1)];
     this.reconnectAttempt += 1;
     this.status.set(`Connection lost. Retrying in ${delay / 1000} s…`);

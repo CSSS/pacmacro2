@@ -113,13 +113,16 @@ func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
 	playerID := players.New(TypePlayer, "Player", RepsGhost, StatusConn)
+	gameConnection := newTestConnection(playerID)
+	admin.sockets.hub.registerConnection(gameConnection)
+	_ = receiveTestMessage(t, gameConnection) // initial player snapshot
 
 	playerType := TypeLeader
 	representation := RepsEdible
 	request := newJSONRequest(
 		t,
 		http.MethodPost,
-		"/api/admin/update/"+playerID,
+		"/api/admin/update/"+string(playerID),
 		AdminUpdateRequest{Type: &playerType, Reps: &representation},
 	)
 	request.AddCookie(cookie)
@@ -133,6 +136,11 @@ func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 	if player.Type != TypeLeader || player.Reps != RepsEdible {
 		t.Errorf("updated player = type %d reps %d, want type %d reps %d", player.Type, player.Reps, TypeLeader, RepsEdible)
 	}
+
+	updatedPlayer := informPlayer(t, receiveTestMessage(t, gameConnection))
+	if updatedPlayer.ID != playerID || updatedPlayer.Type != TypeLeader || updatedPlayer.Reps != RepsEdible {
+		t.Errorf("informed player = %#v, want updated player %q", updatedPlayer, playerID)
+	}
 }
 
 func TestAdminUpdateRejectsDisconnectedPlayer(t *testing.T) {
@@ -144,7 +152,7 @@ func TestAdminUpdateRejectsDisconnectedPlayer(t *testing.T) {
 	request := newJSONRequest(
 		t,
 		http.MethodPost,
-		"/api/admin/update/"+playerID,
+		"/api/admin/update/"+string(playerID),
 		AdminUpdateRequest{Type: &playerType, Reps: &representation},
 	)
 	request.AddCookie(cookie)
@@ -224,7 +232,7 @@ func TestAdminUpdateRequiresCookieAndRejectsAdminPlayerType(t *testing.T) {
 	unauthorizedRequest := newJSONRequest(
 		t,
 		http.MethodPost,
-		"/api/admin/update/"+playerID,
+		"/api/admin/update/"+string(playerID),
 		requestBody,
 	)
 	unauthorizedResponse := httptest.NewRecorder()
@@ -236,7 +244,7 @@ func TestAdminUpdateRequiresCookieAndRejectsAdminPlayerType(t *testing.T) {
 	adminTypeRequest := newJSONRequest(
 		t,
 		http.MethodPost,
-		"/api/admin/update/"+playerID,
+		"/api/admin/update/"+string(playerID),
 		requestBody,
 	)
 	adminTypeRequest.AddCookie(cookie)
