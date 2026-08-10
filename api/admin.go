@@ -172,7 +172,7 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/update/"))
-	_, found, connected := a.players.UpdateConnected(
+	found, connected := a.players.UpdateConnected(
 		targetID,
 		uint64(playerType),
 		uint64(representation),

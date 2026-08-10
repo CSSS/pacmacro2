@@ -156,20 +156,27 @@ func (p *Players) List() []PlayerResponse {
 	return players
 }
 
+// UpdateConnected updates a connected player. Potential return values are:
+//
+// (false, false) - player not found
+//
+// (true, false) - player is found, but not connected
+//
+// (true, true) - player exists and is found
 func (p *Players) UpdateConnected(
 	ID PlayerID,
 	playerType uint64,
 	representation uint64,
-) (PlayerResponse, bool, bool) {
+) (bool, bool) {
 	p.mutex.Lock()
 	player, found := p.players[ID]
 	if !found {
 		p.mutex.Unlock()
-		return PlayerResponse{}, false, false
+		return false, false
 	}
 	if player.Status != StatusConn {
 		p.mutex.Unlock()
-		return PlayerResponse{}, true, false
+		return true, false
 	}
 
 	player.Type = playerType
@@ -177,7 +184,7 @@ func (p *Players) UpdateConnected(
 	response := newPlayerResponse(ID, player)
 	p.mutex.Unlock()
 	p.notify(response)
-	return response, true, true
+	return true, true
 }
 
 // /api/player/*
