@@ -171,7 +171,7 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetID := strings.TrimPrefix(r.URL.Path, "/api/admin/update/")
+	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/update/"))
 	_, found, connected := a.players.UpdateConnected(
 		targetID,
 		uint64(playerType),
@@ -185,7 +185,7 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusConflict)
 		return
 	}
-	a.sockets.Inform(targetID)
 
+	a.sockets.Inform(targetID)
 	w.WriteHeader(http.StatusNoContent)
 }
