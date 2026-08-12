@@ -141,22 +141,38 @@ describe('LeaderPageComponent', () => {
     expect(page.querySelector<HTMLInputElement>('#leader-type-GHOST-3')?.checked).toBe(true);
   });
 
-  it('shows Flag Leader control and rolls it back on authorization failure', async () => {
+  it('shows Flag Leader control as a pressed button and rolls it back on failure', async () => {
     leaderSocket.leader.set({ ...genericLeader, type: PlayerType.FlagLeader });
+    leaderSocket.isFlagFound.set(true);
     api.updateFlag.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 403 })));
     fixture.detectChanges();
     const page = fixture.nativeElement as HTMLElement;
-    const checkbox = page.querySelector<HTMLInputElement>('.flag-control input');
-    checkbox?.click();
+    const button = page.querySelector<HTMLButtonElement>('button.flag-control');
+    expect(button?.textContent?.trim()).toBe('Flag Found');
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.classList.contains('button-secondary')).toBe(false);
+    button?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(api.updateFlag).toHaveBeenCalledWith(true);
-    expect(leaderSocket.isFlagFound()).toBe(false);
-    expect(checkbox?.checked).toBe(false);
+    expect(api.updateFlag).toHaveBeenCalledWith(false);
+    expect(leaderSocket.isFlagFound()).toBe(true);
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
     expect(page.querySelector('.action-status')?.textContent).toContain(
       'does not have this capability',
     );
+  });
+
+  it('uses secondary button styling while the flag has not been found', () => {
+    leaderSocket.leader.set({ ...genericLeader, type: PlayerType.FlagLeader });
+    leaderSocket.isFlagFound.set(false);
+    fixture.detectChanges();
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+      'button.flag-control',
+    );
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.classList.contains('button-secondary')).toBe(true);
   });
 
   it('reacts live when a specialized leader is downgraded to generic Leader', () => {

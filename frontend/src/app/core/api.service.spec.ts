@@ -76,6 +76,15 @@ describe('ApiService', () => {
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
 
+  it('updates flag state with admin credentials', () => {
+    api.updateAdminFlag(true).subscribe();
+    const request = http.expectOne('/api/admin/flag');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.body).toEqual({ isFlagFound: true });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('loads leader state and sends capability updates', () => {
     api.getLeaderState().subscribe();
     const stateRequest = http.expectOne('/api/leader/state.json');

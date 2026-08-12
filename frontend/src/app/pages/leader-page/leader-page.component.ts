@@ -118,13 +118,12 @@ export class LeaderPageComponent {
     }
   }
 
-  protected async toggleFlag(event: Event): Promise<void> {
+  protected async toggleFlagFound(): Promise<void> {
     if (!this.isFlagLeader() || this.flagSaving()) {
       return;
     }
-    const checkbox = event.currentTarget as HTMLInputElement;
     const previous = this.isFlagFound();
-    const next = checkbox.checked;
+    const next = !previous;
     this.isFlagFound.set(next);
     this.flagSaving.set(true);
     this.status.set(next ? 'Marking the flag as found…' : 'Marking the flag as not found…');
@@ -133,7 +132,6 @@ export class LeaderPageComponent {
       this.status.set(next ? 'The flag is marked found.' : 'The flag is marked not found.');
     } catch (error) {
       this.isFlagFound.set(previous);
-      checkbox.checked = previous;
       this.status.set(this.actionError(error, 'update flag state'));
     } finally {
       this.flagSaving.set(false);

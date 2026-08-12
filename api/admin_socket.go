@@ -10,12 +10,14 @@ import (
 const (
 	AdminEventSnapshot = "snapshot"
 	AdminEventUpsert   = "upsert"
+	AdminEventFlag     = "flag"
 )
 
 type AdminSocketMessage struct {
-	Event   string           `json:"event"`
-	Players []PlayerResponse `json:"players"`
-	Player  *PlayerResponse  `json:"player,omitempty"`
+	Event       string           `json:"event"`
+	Players     []PlayerResponse `json:"players"`
+	Player      *PlayerResponse  `json:"player,omitempty"`
+	IsFlagFound *bool            `json:"isFlagFound,omitempty"`
 }
 
 type adminSocketConnection interface {
@@ -77,9 +79,14 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 	defer a.socketMutex.Unlock()
 
 	a.connections[connection] = struct{}{}
+	flagFound := false
+	if a.game != nil {
+		flagFound = a.game.State().IsFlagFound
+	}
 	message := AdminSocketMessage{
-		Event:   AdminEventSnapshot,
-		Players: a.players.List(),
+		Event:       AdminEventSnapshot,
+		Players:     a.players.List(),
+		IsFlagFound: &flagFound,
 	}
 	if !writeAdminSocketMessage(connection, message) {
 		delete(a.connections, connection)
@@ -87,6 +94,14 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 		return false
 	}
 	return true
+}
+
+func (a *Admin) BroadcastFlagState(state GameState) {
+	flagFound := state.IsFlagFound
+	a.broadcastSocketMessage(AdminSocketMessage{
+		Event:       AdminEventFlag,
+		IsFlagFound: &flagFound,
+	})
 }
 
 func (a *Admin) removeConnection(connection adminSocketConnection) {
@@ -97,10 +112,13 @@ func (a *Admin) removeConnection(connection adminSocketConnection) {
 }
 
 func (a *Admin) BroadcastPlayer(player PlayerResponse) {
-	message := AdminSocketMessage{
+	a.broadcastSocketMessage(AdminSocketMessage{
 		Event:  AdminEventUpsert,
 		Player: &player,
-	}
+	})
+}
+
+func (a *Admin) broadcastSocketMessage(message AdminSocketMessage) {
 	JSON, err := json.Marshal(message)
 	if err != nil {
 		return

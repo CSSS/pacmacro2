@@ -30,18 +30,17 @@ export class AdminPageComponent {
   private readonly adminSocket = inject(AdminSocketService);
 
   protected readonly players = this.adminSocket.players;
+  protected readonly isFlagFound = this.adminSocket.isFlagFound;
   protected readonly connectionStatus = this.adminSocket.status;
   protected readonly status = signal('');
   protected readonly loadingPlayers = signal(false);
   protected readonly bulkUpdating = signal(false);
+  protected readonly flagSaving = signal(false);
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
   protected readonly updatesInProgress = computed(
-    () => this.bulkUpdating() || this.savingPlayerIds().size > 0,
-  );
-  protected readonly hasConnectedGhosts = computed(() =>
-    this.players().some((player) => this.isConnected(player) && player.type === PlayerType.Ghost),
+    () => this.bulkUpdating() || this.flagSaving() || this.savingPlayerIds().size > 0,
   );
 
   constructor() {
@@ -101,12 +100,24 @@ export class AdminPageComponent {
     }
   }
 
-  protected async makeGhostsEdible(): Promise<void> {
-    await this.bulkUpdate(
-      (player) => this.isConnected(player) && player.type === PlayerType.Ghost,
-      PlayerType.Edible,
-      'connected Ghosts',
-    );
+  protected async toggleFlagFound(): Promise<void> {
+    if (this.updatesInProgress()) {
+      return;
+    }
+    const previous = this.isFlagFound();
+    const next = !previous;
+    this.isFlagFound.set(next);
+    this.flagSaving.set(true);
+    this.status.set(next ? 'Marking the flag as found…' : 'Marking the flag as not found…');
+    try {
+      await firstValueFrom(this.api.updateAdminFlag(next));
+      this.status.set(next ? 'The flag is marked found.' : 'The flag is marked not found.');
+    } catch {
+      this.isFlagFound.set(previous);
+      this.status.set('Could not update flag state. Register as admin in this browser first.');
+    } finally {
+      this.flagSaving.set(false);
+    }
   }
 
   protected async resetGame(): Promise<void> {
@@ -122,46 +133,10 @@ export class AdminPageComponent {
           isLeaderType(player.type) ? player : { ...player, type: PlayerType.Ghost },
         ),
       );
+      this.isFlagFound.set(false);
       this.status.set('Reset the game successfully.');
     } catch {
       this.status.set('Could not reset the game. Register as admin in this browser first.');
-    } finally {
-      this.bulkUpdating.set(false);
-    }
-  }
-
-  private async bulkUpdate(
-    predicate: (player: Player) => boolean,
-    playerType: PlayerType,
-    targetDescription: string,
-  ): Promise<void> {
-    if (this.updatesInProgress()) {
-      return;
-    }
-    const targets = this.players().filter(predicate);
-    if (!targets.length) {
-      this.status.set(`No ${targetDescription} need updating.`);
-      return;
-    }
-
-    this.bulkUpdating.set(true);
-    this.status.set(`Updating ${targets.length} players…`);
-    try {
-      const results = await Promise.allSettled(
-        targets.map((player) => firstValueFrom(this.api.updatePlayer(player.id, playerType))),
-      );
-      const succeededIds = new Set(
-        targets
-          .filter((_, index) => results[index].status === 'fulfilled')
-          .map((player) => player.id),
-      );
-      this.updateLocalTypes(succeededIds, playerType);
-      const failed = targets.length - succeededIds.size;
-      this.status.set(
-        failed
-          ? `Updated ${succeededIds.size} of ${targets.length} players; ${failed} failed. Register as admin again if the session expired.`
-          : `Updated ${targets.length} players successfully.`,
-      );
     } finally {
       this.bulkUpdating.set(false);
     }
@@ -177,14 +152,6 @@ export class AdminPageComponent {
       }
       return updated;
     });
-  }
-
-  private updateLocalTypes(playerIds: ReadonlySet<string>, playerType: PlayerType): void {
-    this.players.update((players) =>
-      players.map((player) =>
-        playerIds.has(player.id) ? { ...player, type: playerType } : player,
-      ),
-    );
   }
 
   private applyLocalTypeSelection(

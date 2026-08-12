@@ -17,24 +17,22 @@
     >
       {{ refreshing() ? 'Refreshing…' : 'Refresh Players' }}
     </button>
+    @if (isFlagLeader()) {
+      <button
+        type="button"
+        class="flag-control"
+        [class.button-secondary]="!isFlagFound()"
+        [attr.aria-pressed]="isFlagFound()"
+        [disabled]="flagSaving()"
+        (click)="toggleFlagFound()"
+      >
+        Flag Found
+      </button>
+    }
   </section>
 
   @if (isReadOnlyLeader()) {
     <p class="capability-note">This Leader role is read-only.</p>
-  }
-
-  @if (isFlagLeader()) {
-    <section class="flag-control" aria-label="Flag state">
-      <label>
-        <input
-          type="checkbox"
-          [checked]="isFlagFound()"
-          [disabled]="flagSaving()"
-          (change)="toggleFlag($event)"
-        />
-        Flag found
-      </label>
-    </section>
   }
 
   <section class="player-list" aria-label="Players">

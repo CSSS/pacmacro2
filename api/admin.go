@@ -23,6 +23,10 @@ type AdminUpdateRequest struct {
 	Type *PlayerType `json:"type"`
 }
 
+type AdminFlagRequest struct {
+	IsFlagFound *bool `json:"isFlagFound"`
+}
+
 type Admin struct {
 	players     *Players
 	sockets     *Sockets
@@ -47,6 +51,7 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string, games 
 	a.connections = make(map[adminSocketConnection]struct{})
 	if len(games) > 0 {
 		a.game = games[0]
+		a.game.AddObserver(a.BroadcastFlagState)
 	}
 	players.AddObserver(a.BroadcastPlayer)
 
@@ -104,11 +109,36 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeMapSocket(w, r)
 	case requestPath == "reset":
 		a.ServeReset(w, r)
+	case requestPath == "flag":
+		a.ServeFlag(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
+}
+
+// POST /api/admin/flag updates the shared flag-found state.
+func (a *Admin) ServeFlag(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+
+	var request AdminFlagRequest
+	if !decodeJSONBody(w, r, &request) {
+		return
+	}
+	if request.IsFlagFound == nil {
+		writeJSONError(w, http.StatusBadRequest)
+		return
+	}
+	if a.game == nil {
+		writeJSONError(w, http.StatusServiceUnavailable)
+		return
+	}
+
+	a.game.SetFlagFound(*request.IsFlagFound)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // POST /api/admin/reset resets all non-leaders and shared flag state.

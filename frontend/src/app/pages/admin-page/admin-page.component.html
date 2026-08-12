@@ -11,10 +11,13 @@
     <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
     <button
       type="button"
-      [disabled]="updatesInProgress() || !hasConnectedGhosts()"
-      (click)="makeGhostsEdible()"
+      class="flag-control"
+      [class.button-secondary]="!isFlagFound()"
+      [attr.aria-pressed]="isFlagFound()"
+      [disabled]="updatesInProgress()"
+      (click)="toggleFlagFound()"
     >
-      Make Ghosts Edible
+      Flag Found
     </button>
     <button type="button" [disabled]="updatesInProgress()" (click)="resetGame()">Reset Game</button>
     <button

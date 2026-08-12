@@ -79,6 +79,7 @@ describe('AdminSocketService', () => {
     socket.message(
       JSON.stringify({
         event: 'snapshot',
+        isFlagFound: false,
         players: [
           {
             id: 'BBBB',
@@ -122,6 +123,18 @@ describe('AdminSocketService', () => {
       PlayerStatus.Disconnected,
     );
     expect(service.players().find((player) => player.id === 'BBBB')?.type).toBe(PlayerType.Edible);
+    expect(service.isFlagFound()).toBe(false);
+  });
+
+  it('applies initial and live shared flag state', () => {
+    service.start();
+    const socket = MockAdminWebSocket.instances[0];
+    socket.open();
+    socket.message(JSON.stringify({ event: 'snapshot', players: [], isFlagFound: true }));
+    expect(service.isFlagFound()).toBe(true);
+
+    socket.message(JSON.stringify({ event: 'flag', isFlagFound: false }));
+    expect(service.isFlagFound()).toBe(false);
   });
 
   it('ignores malformed server frames', () => {
@@ -141,6 +154,7 @@ describe('AdminSocketService', () => {
     socket.message(
       JSON.stringify({
         event: 'snapshot',
+        isFlagFound: false,
         players: [{ id: 'AAAA', name: 'Test', type: 99, status: PlayerStatus.Connected }],
       }),
     );

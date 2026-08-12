@@ -46,7 +46,9 @@ export interface Player {
 }
 
 export type AdminSocketMessage =
-  { event: 'snapshot'; players: Player[] } | { event: 'upsert'; player: Player };
+  | { event: 'snapshot'; players: Player[]; isFlagFound: boolean }
+  | { event: 'upsert'; player: Player }
+  | { event: 'flag'; isFlagFound: boolean };
 
 export interface LivePlayer {
   coordinate: Coordinate;

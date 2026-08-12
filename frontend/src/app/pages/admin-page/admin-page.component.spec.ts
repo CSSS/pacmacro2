@@ -37,6 +37,7 @@ describe('AdminPageComponent', () => {
   ];
   const adminSocket = {
     players: signal<Player[]>(initialPlayers.map((player) => ({ ...player }))),
+    isFlagFound: signal(false),
     status: signal('Connected'),
     start: vi.fn(),
   };
@@ -51,16 +52,20 @@ describe('AdminPageComponent', () => {
   const api = {
     getPlayers: vi.fn(() => of(refreshedPlayers)),
     updatePlayer: vi.fn(() => of(undefined)),
+    updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
+    adminSocket.isFlagFound.set(false);
     adminSocket.start.mockClear();
     api.getPlayers.mockReset();
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
     api.updatePlayer.mockReturnValue(of(undefined));
+    api.updateAdminFlag.mockReset();
+    api.updateAdminFlag.mockReturnValue(of(undefined));
     api.resetGame.mockReset();
     api.resetGame.mockReturnValue(of(undefined));
 
@@ -208,16 +213,41 @@ describe('AdminPageComponent', () => {
     expect(page.querySelector<HTMLInputElement>('#type-AAAA-1')?.checked).toBe(true);
   });
 
-  it('makes connected Ghosts Edible without changing other players', async () => {
-    const button = findButton('Make Ghosts Edible');
+  it('replaces the Ghost mutation with a shared Flag Found toggle', async () => {
+    const button = findButton('Flag Found');
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    expect(button?.classList.contains('button-secondary')).toBe(true);
     button?.click();
     await fixture.whenStable();
+    fixture.detectChanges();
 
-    expect(api.updatePlayer).toHaveBeenCalledTimes(1);
-    expect(api.updatePlayer).toHaveBeenCalledWith('CCCC', PlayerType.Edible);
+    expect(api.updateAdminFlag).toHaveBeenCalledWith(true);
+    expect(api.updatePlayer).not.toHaveBeenCalled();
+    expect(adminSocket.isFlagFound()).toBe(true);
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(button?.classList.contains('button-secondary')).toBe(false);
+  });
+
+  it('rolls back a failed Admin flag update', async () => {
+    adminSocket.isFlagFound.set(true);
+    api.updateAdminFlag.mockReturnValueOnce(throwError(() => new Error('update failed')));
+    fixture.detectChanges();
+    const button = findButton('Flag Found');
+
+    button?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.updateAdminFlag).toHaveBeenCalledWith(false);
+    expect(adminSocket.isFlagFound()).toBe(true);
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.admin-status')?.textContent,
+    ).toContain('Could not update flag state');
   });
 
   it('resets connected and offline non-Leaders to Ghost while preserving Leaders', async () => {
+    adminSocket.isFlagFound.set(true);
     const button = findButton('Reset Game');
     button?.click();
     await fixture.whenStable();
@@ -233,11 +263,12 @@ describe('AdminPageComponent', () => {
     expect(adminSocket.players().find((player) => player.id === 'DDDD')?.type).toBe(
       PlayerType.Leader,
     );
+    expect(adminSocket.isFlagFound()).toBe(false);
   });
 
   it('can manually refresh the current player list', async () => {
     const page = fixture.nativeElement as HTMLElement;
-    page.querySelector<HTMLButtonElement>('.button-secondary')?.click();
+    findButton('Refresh Players')?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 

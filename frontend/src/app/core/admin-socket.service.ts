@@ -20,6 +20,7 @@ export class AdminSocketService {
   private intentionallyClosed = false;
 
   readonly players = signal<Player[]>([]);
+  readonly isFlagFound = signal(false);
   readonly state = signal<AdminSocketState>('idle');
   readonly status = signal('Admin player feed is not connected.');
 
@@ -149,12 +150,17 @@ export class AdminSocketService {
       return;
     }
 
-    if (message.event === 'snapshot' && Array.isArray(message.players)) {
+    if (
+      message.event === 'snapshot' &&
+      Array.isArray(message.players) &&
+      typeof message.isFlagFound === 'boolean'
+    ) {
       const players = message.players.filter(isPlayer);
       if (players.length !== message.players.length) {
         return;
       }
       this.players.set(sortPlayers(players));
+      this.isFlagFound.set(message.isFlagFound);
       return;
     }
 
@@ -169,6 +175,11 @@ export class AdminSocketService {
         }
         return sortPlayers(updatedPlayers);
       });
+      return;
+    }
+
+    if (message.event === 'flag' && typeof message.isFlagFound === 'boolean') {
+      this.isFlagFound.set(message.isFlagFound);
     }
   }
 }
