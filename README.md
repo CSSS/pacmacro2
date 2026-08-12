@@ -98,6 +98,7 @@ leaving connected players' live coordinates intact.
 ## Control APIs
 
 - `POST /api/admin/reset` resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
+- `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
 - `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie.
 - `POST /api/leader/update/<ID>` accepts `{ "type": 2|3 }` from an AntiPac Leader.
 - `POST /api/leader/flag` accepts `{ "isFlagFound": boolean }` from a Flag Leader.
@@ -105,3 +106,5 @@ leaving connected players' live coordinates intact.
 
 Game and admin-map sockets send `state` messages whose `data` is
 `{ "isFlagFound": boolean }`, including one in every initial snapshot.
+The Admin control socket includes `isFlagFound` in its `snapshot` event and
+sends `flag` events whenever that shared state changes.

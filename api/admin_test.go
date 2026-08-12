@@ -176,6 +176,69 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 	}
 }
 
+func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	connection := new(recordingAdminConnection)
+	if !admin.addConnection(connection) {
+		t.Fatal("add admin socket connection")
+	}
+	defer admin.removeConnection(connection)
+
+	var snapshot AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[0], &snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Event != AdminEventSnapshot || snapshot.IsFlagFound == nil ||
+		*snapshot.IsFlagFound {
+		t.Fatalf("initial Admin snapshot = %#v", snapshot)
+	}
+
+	request := newJSONRequest(
+		t,
+		http.MethodPost,
+		"/api/admin/flag",
+		AdminFlagRequest{IsFlagFound: boolPointer(true)},
+	)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Admin flag status = %d, want 204", response.Code)
+	}
+	if !game.State().IsFlagFound {
+		t.Error("Admin flag update did not change shared game state")
+	}
+	if len(connection.messages) != 2 {
+		t.Fatalf("Admin socket messages = %d, want snapshot and flag", len(connection.messages))
+	}
+	var update AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[1], &update); err != nil {
+		t.Fatal(err)
+	}
+	if update.Event != AdminEventFlag || update.IsFlagFound == nil || !*update.IsFlagFound {
+		t.Errorf("Admin flag socket update = %#v", update)
+	}
+
+	unauthorized := newJSONRequest(
+		t,
+		http.MethodPost,
+		"/api/admin/flag",
+		AdminFlagRequest{IsFlagFound: boolPointer(false)},
+	)
+	unauthorizedResponse := httptest.NewRecorder()
+	admin.ServeHTTP(unauthorizedResponse, unauthorized)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized Admin flag status = %d, want 401", unauthorizedResponse.Code)
+	}
+}
+
 func TestAdminResetClearsOfflineLocationsButPreservesActiveCoordinates(t *testing.T) {
 	players := new(Players)
 	players.Init()

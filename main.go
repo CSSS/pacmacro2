@@ -30,6 +30,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/player/register   Register as a player and receive an ID.
 * POST  /api/admin/register    Register the administrator and set its session cookie.
 * POST  /api/admin/update/<ID> Update a player's type.
+* POST  /api/admin/flag        Update shared flag-found state.
 * POST  /api/admin/reset       Reset all non-leader players and game state.
 * WS    /api/admin/ws          Receive authenticated live player status updates.
 * WS    /api/admin/map/ws      View authenticated live game updates without a player.
