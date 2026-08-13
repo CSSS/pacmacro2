@@ -5,7 +5,7 @@ import { of } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
-import { GameSocketService } from '../../core/game-socket.service';
+import { GameSocketService } from '../../core/sockets/game-socket.service';
 import { GeolocationService } from '../../core/geolocation.service';
 import { MapInfo, PlayerStatus, PlayerType } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';

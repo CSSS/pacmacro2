@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { PAC_WINDOW } from '../../core/browser-window.token';
 import { CredentialsService } from '../../core/credentials.service';
-import { GameSocketService } from '../../core/game-socket.service';
+import { GameSocketService } from '../../core/sockets/game-socket.service';
 import { GeolocationService } from '../../core/geolocation.service';
 import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';

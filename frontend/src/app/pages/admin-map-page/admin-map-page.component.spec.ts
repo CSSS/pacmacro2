@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
-import { GameSocketService } from '../../core/game-socket.service';
+import { GameSocketService } from '../../core/sockets/game-socket.service';
 import { MapInfo } from '../../core/game.models';
 import { AdminMapPageComponent } from './admin-map-page.component';
 

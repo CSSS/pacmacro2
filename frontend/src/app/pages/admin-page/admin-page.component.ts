@@ -31,7 +31,7 @@ export class AdminPageComponent {
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
-  protected readonly socketReady = this.adminSocket.ready;
+  protected readonly socketReady = this.adminSocket.isReady;
   protected readonly connectionStatus = this.adminSocket.status;
   protected readonly status = signal('');
   protected readonly loadingPlayers = signal(false);

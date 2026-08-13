@@ -11,7 +11,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { Player, PlayerStatus, PlayerType, typeLabel } from '../../core/game.models';
-import { LeaderSocketService } from '../../core/leader-socket.service';
+import { LeaderSocketService } from '../../core/sockets/leader-socket.service';
 
 @Component({
   selector: 'pac-leader-page',

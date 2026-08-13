@@ -5,7 +5,7 @@ import { of, throwError } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { LeaderState, Player, PlayerStatus, PlayerType } from '../../core/game.models';
-import { LeaderSocketService } from '../../core/leader-socket.service';
+import { LeaderSocketService } from '../../core/sockets/leader-socket.service';
 import { LeaderPageComponent } from './leader-page.component';
 
 describe('LeaderPageComponent', () => {

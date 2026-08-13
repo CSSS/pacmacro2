@@ -31,18 +31,22 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
 
   readonly players = signal<Player[]>([]);
   readonly isFlagFound = signal(false);
-  readonly ready = signal(false);
+
+  /**
+   * Flag that indicates the socket has non-stale data after a connect/reconnect.
+   */
+  readonly isReady = signal(false);
 
   protected override onSocketOpen(): void {
-    this.ready.set(false);
+    this.isReady.set(false);
   }
 
   protected override onSocketClose(): void {
-    this.ready.set(false);
+    this.isReady.set(false);
   }
 
   protected override onDisconnect(): void {
-    this.ready.set(false);
+    this.isReady.set(false);
   }
 
   protected override shouldReconnect(closeEvent: CloseEvent): boolean {
@@ -85,7 +89,7 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       case 'snapshot': {
         this.players.set(sortPlayers(msg.players));
         this.isFlagFound.set(msg.isFlagFound);
-        this.ready.set(true);
+        this.isReady.set(true);
         return;
       }
       case 'upsert': {

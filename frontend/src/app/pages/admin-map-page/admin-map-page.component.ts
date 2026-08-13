@@ -10,7 +10,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { PAC_WINDOW } from '../../core/browser-window.token';
-import { GameSocketService } from '../../core/game-socket.service';
+import { GameSocketService } from '../../core/sockets/game-socket.service';
 import { MapInfo } from '../../core/game.models';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';

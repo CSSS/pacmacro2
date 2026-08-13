@@ -82,7 +82,7 @@ describe('sockets/AdminSocketService', () => {
   it('connects to the authenticated Admin feed', () => {
     expect(socket.url).toBe(`ws://${window.location.host}/api/admin/ws`);
     expect(service.status()).toBe('Connected');
-    expect(service.ready()).toBe(false);
+    expect(service.isReady()).toBe(false);
   });
 
   it('does not become ready until a valid snapshot arrives and resets readiness on close', () => {
@@ -97,13 +97,13 @@ describe('sockets/AdminSocketService', () => {
     });
     socket.message({ event: 'snapshot', players: [] });
 
-    expect(service.ready()).toBe(false);
+    expect(service.isReady()).toBe(false);
 
     socket.message({ event: 'snapshot', isFlagFound: true, players: [] });
-    expect(service.ready()).toBe(true);
+    expect(service.isReady()).toBe(true);
 
     socket.serverClose(false);
-    expect(service.ready()).toBe(false);
+    expect(service.isReady()).toBe(false);
   });
 
   it('stops reconnecting and gives registration guidance after an authentication rejection', () => {
@@ -113,7 +113,7 @@ describe('sockets/AdminSocketService', () => {
     socket.serverClose(true, 1008, 'Admin authentication required');
     vi.runAllTimers();
 
-    expect(service.ready()).toBe(false);
+    expect(service.isReady()).toBe(false);
     expect(service.status()).toContain('Register as admin again in this browser');
     expect(MockAdminWebSocket.instances).toHaveLength(1);
   });

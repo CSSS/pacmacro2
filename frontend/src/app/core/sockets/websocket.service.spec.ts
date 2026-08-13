@@ -14,8 +14,26 @@ class TestWebSocketService extends WebSocketService<TestMessage> {
   protected override SERVICE_NAME = 'TestWebSocketService';
 
   readonly messages: TestMessage[] = [];
+  closeCount = 0;
+  reconnect = true;
 
   readonly transportState = this.state;
+
+  send(message: TestMessage): boolean {
+    return this.sendMessage(message);
+  }
+
+  requestReconnect(state: TransportState = 'connecting'): boolean {
+    return this.reconnectWithBackoff(state);
+  }
+
+  protected override onSocketClose(): void {
+    this.closeCount += 1;
+  }
+
+  protected override shouldReconnect(): boolean {
+    return this.reconnect;
+  }
 
   protected override isMessageValid(message: unknown): message is TestMessage {
     return (
@@ -36,6 +54,7 @@ class MockRxWebSocket {
   static readonly CLOSING = 2;
   static readonly CLOSED = 3;
   static readonly instances: MockRxWebSocket[] = [];
+  static closeSynchronously = true;
 
   readonly sent: unknown[] = [];
   readonly closeCalls: Array<{ code?: number; reason?: string }> = [];
@@ -60,7 +79,9 @@ class MockRxWebSocket {
       return;
     }
     this.closeCalls.push({ code, reason });
-    this.serverClose(true, code ?? 1000, reason ?? '');
+    if (MockRxWebSocket.closeSynchronously) {
+      this.serverClose(true, code ?? 1000, reason ?? '');
+    }
   }
 
   open(): void {
@@ -85,6 +106,7 @@ describe('WebSocketService', () => {
 
   beforeEach(() => {
     MockRxWebSocket.instances.length = 0;
+    MockRxWebSocket.closeSynchronously = true;
     originalWebSocket = window.WebSocket;
     originalOnline = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
     Object.defineProperty(window, 'WebSocket', {
@@ -140,6 +162,29 @@ describe('WebSocketService', () => {
 
     expect(service.messages).toEqual([{ value: 'accepted' }]);
     expect(service.transportState()).toBe<TransportState>('connected');
+  });
+
+  it('serializes typed outbound messages only while the socket is open', () => {
+    expect(service.send({ value: 'too early' })).toBe(false);
+    service.connect();
+    const socket = MockRxWebSocket.instances[0];
+
+    expect(service.send({ value: 'still early' })).toBe(false);
+    socket.open();
+    expect(service.send({ value: 'outbound' })).toBe(true);
+    expect(socket.sent).toEqual([JSON.stringify({ value: 'outbound' })]);
+
+    service.disconnect();
+    expect(service.send({ value: 'too late' })).toBe(false);
+  });
+
+  it.each([
+    ['suspended', 'Websocket connection suspended.'],
+    ['revoked', 'Websocket access revoked.'],
+  ] as const)('reports the default %s status', (state, expectedStatus) => {
+    service.state.set(state);
+
+    expect(service.status()).toBe(expectedStatus);
   });
 
   it.each([
@@ -200,6 +245,55 @@ describe('WebSocketService', () => {
 
     expect(service.transportState()).toBe<TransportState>('idle');
     expect(MockRxWebSocket.instances).toHaveLength(1);
+  });
+
+  it('can request a backoff reconnect while preserving a service-specific state', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.connect();
+    const first = MockRxWebSocket.instances[0];
+    first.open();
+
+    expect(service.requestReconnect('revoked')).toBe(true);
+    expect(service.transportState()).toBe('revoked');
+    vi.advanceTimersByTime(999);
+    expect(MockRxWebSocket.instances).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+
+    expect(MockRxWebSocket.instances).toHaveLength(2);
+    MockRxWebSocket.instances[1].open();
+    expect(service.transportState()).toBe('connected');
+  });
+
+  it('releases terminal transport references so connect can be requested again', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    service.connect();
+    const first = MockRxWebSocket.instances[0];
+    first.open();
+    service.reconnect = false;
+
+    first.serverClose(true, 1008);
+    expect(service.transportState()).toBe('error');
+
+    service.connect();
+    expect(MockRxWebSocket.instances).toHaveLength(2);
+    expect(service.transportState()).toBe('connecting');
+  });
+
+  it('ignores a late close callback after an intentional disconnect', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    MockRxWebSocket.closeSynchronously = false;
+    service.connect();
+    const socket = MockRxWebSocket.instances[0];
+    socket.open();
+    const lateClose = socket.onclose;
+
+    service.disconnect();
+    lateClose?.(new CloseEvent('close', { code: 1000, wasClean: true }));
+
+    expect(service.closeCount).toBe(0);
+    expect(service.transportState()).toBe('idle');
   });
 
   it('closes the active socket when its injection context is destroyed', () => {
