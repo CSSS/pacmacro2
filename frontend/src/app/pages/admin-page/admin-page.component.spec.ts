@@ -2,9 +2,9 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
-import { AdminSocketService } from '../../core/admin-socket.service';
 import { ApiService } from '../../core/api.service';
 import { Player, PlayerStatus, PlayerType } from '../../core/game.models';
+import { AdminSocketService } from '../../core/sockets/admin-socket.service';
 import { AdminPageComponent } from './admin-page.component';
 
 describe('AdminPageComponent', () => {
@@ -38,8 +38,9 @@ describe('AdminPageComponent', () => {
   const adminSocket = {
     players: signal<Player[]>(initialPlayers.map((player) => ({ ...player }))),
     isFlagFound: signal(false),
+    ready: signal(true),
     status: signal('Connected'),
-    start: vi.fn(),
+    connect: vi.fn(),
   };
   const refreshedPlayers: Player[] = [
     {
@@ -59,7 +60,8 @@ describe('AdminPageComponent', () => {
   beforeEach(async () => {
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
-    adminSocket.start.mockClear();
+    adminSocket.ready.set(true);
+    adminSocket.connect.mockClear();
     api.getPlayers.mockReset();
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
@@ -87,10 +89,32 @@ describe('AdminPageComponent', () => {
     const page = fixture.nativeElement as HTMLElement;
     const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
 
-    expect(adminSocket.start).toHaveBeenCalledOnce();
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
     expect(link?.getAttribute('href')).toBe('/admin/map');
     expect(link?.getAttribute('target')).toBe('_blank');
     expect(link?.getAttribute('rel')).toBe('noopener');
+  });
+
+  it('disables Admin mutations until the socket snapshot is ready', () => {
+    adminSocket.ready.set(false);
+    fixture.detectChanges();
+
+    expect(findButton('Flag Found')?.disabled).toBe(true);
+    expect(findButton('Reset Game')?.disabled).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
+        ?.disabled,
+    ).toBe(true);
+
+    adminSocket.ready.set(true);
+    fixture.detectChanges();
+
+    expect(findButton('Flag Found')?.disabled).toBe(false);
+    expect(findButton('Reset Game')?.disabled).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
+        ?.disabled,
+    ).toBe(false);
   });
 
   it('renders the seven ordered type radios in independent groups', () => {
