@@ -13,7 +13,6 @@ import {
 import { PAC_WINDOW } from '../../core/browser-window.token';
 import { LivePlayer, MapInfo, PlayerStatus, PlayerType } from '../../core/game.models';
 import {
-  CANVAS_PADDING,
   clampLabelX,
   convertCoords,
   getCanvasMetrics,
@@ -155,13 +154,7 @@ export class GameCanvasComponent {
     canvas.width = metrics.canvasWidth;
     canvas.height = metrics.canvasHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(
-      mapImage,
-      CANVAS_PADDING.left,
-      CANVAS_PADDING.top,
-      metrics.mapWidth,
-      metrics.mapHeight,
-    );
+    context.drawImage(mapImage, 0, 0, metrics.mapWidth, metrics.mapHeight);
     context.font = `${LABEL_FONT_SIZE}px Inter, sans-serif`;
     context.textAlign = 'center';
     context.fillStyle = '#fff';
@@ -177,8 +170,8 @@ export class GameCanvasComponent {
         continue;
       }
 
-      const anchorX = CANVAS_PADDING.left + plot.x * MAP_PIXEL_SCALE;
-      const anchorY = CANVAS_PADDING.top + plot.y * MAP_PIXEL_SCALE;
+      const anchorX = plot.x * MAP_PIXEL_SCALE;
+      const anchorY = plot.y * MAP_PIXEL_SCALE;
       context.save();
       context.globalAlpha = opacityForPlayer(livePlayer);
       context.drawImage(
