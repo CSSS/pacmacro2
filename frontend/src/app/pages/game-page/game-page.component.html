@@ -27,11 +27,16 @@
   </label>
   <p class="game-page__wake-status">{{ wakeLock.status() }}</p>
 
-  @if (showLeaderLink()) {
-    <p class="game-page__leader-link">
-      <a class="button" href="/leader" target="_blank" rel="noopener">Open Leader Panel</a>
-    </p>
-  }
+  <p class="game-page__leader-link">
+    <a
+      class="button"
+      [style.visibility]="showLeaderLink() ? 'visible' : 'hidden'"
+      href="/leader"
+      target="_blank"
+      rel="noopener"
+      >Open Leader Panel</a
+    >
+  </p>
 
   @if (map(); as gameMap) {
     <pac-game-canvas
