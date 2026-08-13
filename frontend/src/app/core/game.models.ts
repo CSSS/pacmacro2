@@ -61,6 +61,8 @@ export interface SocketMessage {
   data: string;
 }
 
+export type GameSocketMessage = SocketMessage | Coordinate;
+
 export interface GameState {
   isFlagFound: boolean;
 }

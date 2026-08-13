@@ -38,7 +38,7 @@ describe('AdminPageComponent', () => {
   const adminSocket = {
     players: signal<Player[]>(initialPlayers.map((player) => ({ ...player }))),
     isFlagFound: signal(false),
-    ready: signal(true),
+    isReady: signal(true),
     status: signal('Connected'),
     connect: vi.fn(),
   };
@@ -60,7 +60,7 @@ describe('AdminPageComponent', () => {
   beforeEach(async () => {
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
-    adminSocket.ready.set(true);
+    adminSocket.isReady.set(true);
     adminSocket.connect.mockClear();
     api.getPlayers.mockReset();
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
@@ -96,7 +96,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('disables Admin mutations until the socket snapshot is ready', () => {
-    adminSocket.ready.set(false);
+    adminSocket.isReady.set(false);
     fixture.detectChanges();
 
     expect(findButton('Flag Found')?.disabled).toBe(true);
@@ -106,7 +106,7 @@ describe('AdminPageComponent', () => {
         ?.disabled,
     ).toBe(true);
 
-    adminSocket.ready.set(true);
+    adminSocket.isReady.set(true);
     fixture.detectChanges();
 
     expect(findButton('Flag Found')?.disabled).toBe(false);
