@@ -1,16 +1,4 @@
-import {
-  CANVAS_PADDING,
-  clampLabelX,
-  convertCoords,
-  getCanvasMetrics,
-  isPlotInside,
-  LABEL_OFFSET,
-  MAP_PIXEL_SCALE,
-  SPRITE_HEIGHT,
-  SPRITE_LEFT_OFFSET,
-  SPRITE_TOP_OFFSET,
-  SPRITE_WIDTH,
-} from './map.utils';
+import { clampLabelX, convertCoords, getCanvasMetrics, isPlotInside } from './map.utils';
 import { MapInfo } from './game.models';
 
 describe('map utilities', () => {
@@ -39,22 +27,13 @@ describe('map utilities', () => {
     expect(convertCoords(map, { latitude: Number.NaN, longitude: 30 })).toBeNull();
   });
 
-  it('keeps edge sprites and label baselines inside the padded canvas', () => {
-    const metrics = getCanvasMetrics(map);
-    const leftAnchor = CANVAS_PADDING.left;
-    const rightAnchor = CANVAS_PADDING.left + map.width * MAP_PIXEL_SCALE;
-    const topAnchor = CANVAS_PADDING.top;
-    const bottomAnchor = CANVAS_PADDING.top + map.height * MAP_PIXEL_SCALE;
-
-    expect(leftAnchor - SPRITE_LEFT_OFFSET).toBeGreaterThanOrEqual(0);
-    expect(rightAnchor - SPRITE_LEFT_OFFSET + SPRITE_WIDTH).toBeLessThanOrEqual(
-      metrics.canvasWidth,
-    );
-    expect(topAnchor - LABEL_OFFSET).toBeGreaterThan(0);
-    expect(topAnchor - SPRITE_TOP_OFFSET).toBeGreaterThanOrEqual(0);
-    expect(bottomAnchor - SPRITE_TOP_OFFSET + SPRITE_HEIGHT).toBeLessThanOrEqual(
-      metrics.canvasHeight,
-    );
+  it('sizes the canvas to the map dimensions', () => {
+    expect(getCanvasMetrics(map)).toEqual({
+      mapWidth: 1024,
+      mapHeight: 512,
+      canvasWidth: 1024,
+      canvasHeight: 512,
+    });
   });
 
   it('clamps long labels to the canvas width', () => {

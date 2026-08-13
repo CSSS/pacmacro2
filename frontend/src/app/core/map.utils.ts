@@ -7,12 +7,6 @@ export const SPRITE_LEFT_OFFSET = 48;
 export const SPRITE_TOP_OFFSET = 88;
 export const LABEL_OFFSET = 112;
 export const LABEL_FONT_SIZE = 20;
-export const CANVAS_PADDING = {
-  left: SPRITE_LEFT_OFFSET,
-  right: SPRITE_WIDTH - SPRITE_LEFT_OFFSET,
-  top: LABEL_OFFSET + LABEL_FONT_SIZE + 4,
-  bottom: SPRITE_HEIGHT - SPRITE_TOP_OFFSET,
-} as const;
 
 export interface CanvasMetrics {
   mapWidth: number;
@@ -59,8 +53,8 @@ export function getCanvasMetrics(map: MapInfo): CanvasMetrics {
   return {
     mapWidth,
     mapHeight,
-    canvasWidth: mapWidth + CANVAS_PADDING.left + CANVAS_PADDING.right,
-    canvasHeight: mapHeight + CANVAS_PADDING.top + CANVAS_PADDING.bottom,
+    canvasWidth: mapWidth,
+    canvasHeight: mapHeight,
   };
 }
 
