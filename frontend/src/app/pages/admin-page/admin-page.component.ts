@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
-import { AdminSocketService } from '../../core/admin-socket.service';
+import { AdminSocketService } from '../../core/sockets/admin-socket.service';
 import { ApiService } from '../../core/api.service';
 import {
   isLeaderType,
@@ -31,6 +31,7 @@ export class AdminPageComponent {
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
+  protected readonly socketReady = this.adminSocket.ready;
   protected readonly connectionStatus = this.adminSocket.status;
   protected readonly status = signal('');
   protected readonly loadingPlayers = signal(false);
@@ -40,11 +41,15 @@ export class AdminPageComponent {
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
   protected readonly updatesInProgress = computed(
-    () => this.bulkUpdating() || this.flagSaving() || this.savingPlayerIds().size > 0,
+    () =>
+      !this.socketReady() ||
+      this.bulkUpdating() ||
+      this.flagSaving() ||
+      this.savingPlayerIds().size > 0,
   );
 
   constructor() {
-    afterNextRender(() => this.adminSocket.start());
+    afterNextRender(() => this.adminSocket.connect());
   }
 
   protected isConnected(player: Player): boolean {

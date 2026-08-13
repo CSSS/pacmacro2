@@ -139,3 +139,7 @@ export function isLeaderType(value: PlayerType): boolean {
     value === PlayerType.FlagLeader
   );
 }
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
