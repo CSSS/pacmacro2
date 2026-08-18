@@ -1,4 +1,5 @@
-import { signal } from '@angular/core';
+playerTypefrontend/src/app/pages/admin-page/admin-page.component.tsimport { HttpErrorResponse } from '@angular/common/http';
+import { signal, WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
@@ -51,13 +52,29 @@ describe('AdminPageComponent', () => {
     },
   ];
   const api = {
+<<<<<<< HEAD
     getPlayers: vi.fn(() => of(refreshedPlayers)),
+=======
+    getPlayers: vi.fn(() =>
+      of([
+        {
+          id: 'CCCC',
+          type: PlayerType.Leader,
+          name: 'Current player',
+          reps: Representation.Ghost,
+          status: PlayerStatus.Connected,
+        },
+      ]),
+    ),
+    registerAdmin: vi.fn(() => of(void 0)),
+>>>>>>> 8c74214 (refactor: move admin page to /admin)
     updatePlayer: vi.fn(() => of(undefined)),
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
+<<<<<<< HEAD
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
     adminSocket.isReady.set(true);
@@ -71,6 +88,28 @@ describe('AdminPageComponent', () => {
     api.resetGame.mockReset();
     api.resetGame.mockReturnValue(of(undefined));
 
+=======
+    adminSocket.start.mockClear();
+    adminSocket.players.set([
+      {
+        id: 'AAAA',
+        type: PlayerType.Player,
+        name: 'Ada',
+        reps: Representation.Pacman,
+        status: PlayerStatus.Connected,
+      },
+      {
+        id: 'BBBB',
+        type: PlayerType.Player,
+        name: 'Ben',
+        reps: Representation.Nothing,
+        status: PlayerStatus.Disconnected,
+      },
+    ]);
+    api.getPlayers.mockClear();
+    api.registerAdmin.mockClear();
+    api.registerAdmin.mockReturnValue(of(void 0));
+>>>>>>> 8c74214 (refactor: move admin page to /admin)
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
       providers: [{ provide: ApiService, useValue: api }],
@@ -81,10 +120,9 @@ describe('AdminPageComponent', () => {
       .compileComponents();
 
     fixture = TestBed.createComponent(AdminPageComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
   });
 
+<<<<<<< HEAD
   it('starts the admin player feed and preserves the new-tab map link', () => {
     const page = fixture.nativeElement as HTMLElement;
     const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
@@ -118,6 +156,72 @@ describe('AdminPageComponent', () => {
   });
 
   it('renders the seven ordered type radios in independent groups', () => {
+=======
+  it('shows the sign-in form instead of the dashboard before authentication', () => {
+    fixture.detectChanges();
+
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).not.toBeNull();
+    expect(page.querySelector('.player-list')).toBeNull();
+    expect(adminSocket.start).not.toHaveBeenCalled();
+  });
+
+  it('starts the admin player feed after rendering when already signed in', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    expect(adminSocket.start).toHaveBeenCalledOnce();
+  });
+
+  it('requires the administrator password before calling the API', async () => {
+    harness().loginModel.set({ password: '' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).not.toHaveBeenCalled();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.form-status')?.textContent).toContain('administrator password');
+  });
+
+  it('keeps the sign-in form when the administrator password is incorrect', async () => {
+    api.registerAdmin.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+    harness().loginModel.set({ password: 'wrong' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).toHaveBeenCalledWith('wrong');
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).not.toBeNull();
+    expect(page.querySelector('.player-list')).toBeNull();
+    expect(page.querySelector('.form-status')?.textContent).toContain('incorrect');
+    expect(adminSocket.start).not.toHaveBeenCalled();
+  });
+
+  it('reveals the dashboard and starts the player feed after a successful sign-in', async () => {
+    harness().loginModel.set({ password: 'secret' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).toHaveBeenCalledWith('secret');
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).toBeNull();
+    expect(page.querySelector('.player-list')).not.toBeNull();
+    expect(adminSocket.start).toHaveBeenCalledOnce();
+  });
+
+  it('grays out disconnected players and disables their state controls', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+>>>>>>> 8c74214 (refactor: move admin page to /admin)
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
     const expectedLabels = [
@@ -291,6 +395,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('can manually refresh the current player list', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     findButton('Refresh Players')?.click();
     await fixture.whenStable();
@@ -300,10 +407,25 @@ describe('AdminPageComponent', () => {
     expect(page.querySelector('.player-card strong')?.textContent).toContain('Current player');
   });
 
+<<<<<<< HEAD
   function findButton(label: string): HTMLButtonElement | undefined {
     const page = fixture.nativeElement as HTMLElement;
     return [...page.querySelectorAll<HTMLButtonElement>('button')].find(
       (button) => button.textContent?.trim() === label,
     );
+=======
+  function harness(): AdminPageHarness {
+    return fixture.componentInstance as unknown as AdminPageHarness;
+>>>>>>> 8c74214 (refactor: move admin page to /admin)
   }
 });
+
+interface AdminPageHarness {
+  authenticated: WritableSignal<boolean>;
+  loginModel: WritableSignal<{ password: string }>;
+  submit(event: SubmitEvent): Promise<void>;
+}
+
+function submitEvent(): SubmitEvent {
+  return { preventDefault: vi.fn() } as unknown as SubmitEvent;
+}

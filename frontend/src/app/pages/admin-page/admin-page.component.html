@@ -1,66 +1,92 @@
-<main class="admin-page">
-  <header>
-    <p class="eyebrow">PacMacro control panel</p>
-    <h1>Admin</h1>
-  </header>
+@if (!authenticated()) {
+  <pac-brand-header />
 
-  <p class="admin-connection-status" role="status">Websocket: {{ connectionStatus() }}</p>
-  <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
+  <main class="auth-page">
+    <form class="auth-card" (submit)="submit($event)">
+      <h1>Admin sign in</h1>
 
-  <section class="admin-actions" aria-label="Admin actions">
-    <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
-    <button
-      type="button"
-      class="flag-control"
-      [class.button-secondary]="!isFlagFound()"
-      [attr.aria-pressed]="isFlagFound()"
-      [disabled]="updatesInProgress()"
-      (click)="toggleFlagFound()"
-    >
-      Flag Found
-    </button>
-    <button type="button" [disabled]="updatesInProgress()" (click)="resetGame()">Reset Game</button>
-    <button
-      type="button"
-      class="button-secondary"
-      [disabled]="loadingPlayers()"
-      (click)="refreshPlayers()"
-    >
-      {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
-    </button>
-  </section>
+      <hr />
+      <label for="admin-password">Administrator password</label>
+      <input
+        id="admin-password"
+        type="password"
+        autocomplete="current-password"
+        [formField]="loginForm.password"
+      />
 
-  <section class="player-list" aria-label="Players">
-    @for (player of players(); track player.id) {
-      <article class="player-card" [class.player-card--offline]="!isConnected(player)">
-        <div class="player-card__identity">
-          <strong>{{ player.name }}</strong>
-          <span>{{ player.id }}</span>
-          <span class="player-card__status">
-            {{ isConnected(player) ? 'Connected' : 'Offline' }}
-          </span>
-        </div>
+      <button type="submit" [disabled]="loginForm().submitting()">
+        {{ loginForm().submitting() ? 'Signing in…' : 'Sign in' }}
+      </button>
+      <p class="form-status" role="status" aria-live="polite">{{ status() }}</p>
+    </form>
+  </main>
+} @else {
+  <main class="admin-page">
+    <header>
+      <p class="eyebrow">PacMacro control panel</p>
+      <h1>Admin</h1>
+    </header>
 
-        <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
-          @for (playerType of playerTypes; track playerType.value) {
-            <input
-              [id]="'type-' + player.id + '-' + playerType.value"
-              class="player-type"
-              type="radio"
-              [name]="'type-' + player.id"
-              [value]="playerType.value"
-              [disabled]="updatesInProgress() || isPlayerControlDisabled(player)"
-              [checked]="isTypeSelected(player, playerType.value)"
-              (change)="updateType(player, playerType.value, $event)"
-            />
-            <label class="button" [for]="'type-' + player.id + '-' + playerType.value">
-              {{ playerType.label }}
-            </label>
-          }
-        </div>
-      </article>
-    } @empty {
-      <p class="player-list__empty">Players will appear here when they register.</p>
-    }
-  </section>
-</main>
+    <p class="admin-connection-status" role="status">Websocket: {{ connectionStatus() }}</p>
+    <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
+
+    <section class="admin-actions" aria-label="Admin actions">
+      <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
+      <button
+        type="button"
+        class="flag-control"
+        [class.button-secondary]="!isFlagFound()"
+        [attr.aria-pressed]="isFlagFound()"
+        [disabled]="updatesInProgress()"
+        (click)="toggleFlagFound()"
+      >
+        Flag Found
+      </button>
+      <button type="button" [disabled]="updatesInProgress()" (click)="resetGame()">
+        Reset Game
+      </button>
+      <button
+        type="button"
+        class="button-secondary"
+        [disabled]="loadingPlayers()"
+        (click)="refreshPlayers()"
+      >
+        {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
+      </button>
+    </section>
+
+    <section class="player-list" aria-label="Players">
+      @for (player of players(); track player.id) {
+        <article class="player-card" [class.player-card--offline]="!isConnected(player)">
+          <div class="player-card__identity">
+            <strong>{{ player.name }}</strong>
+            <span>{{ player.id }}</span>
+            <span class="player-card__status">
+              {{ isConnected(player) ? 'Connected' : 'Offline' }}
+            </span>
+          </div>
+
+          <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
+            @for (playerType of playerTypes; track playerType.value) {
+              <input
+                [id]="'type-' + player.id + '-' + playerType.value"
+                class="player-type"
+                type="radio"
+                [name]="'type-' + player.id"
+                [value]="playerType.value"
+                [disabled]="updatesInProgress() || isPlayerControlDisabled(player)"
+                [checked]="isTypeSelected(player, playerType.value)"
+                (change)="updateType(player, playerType.value, $event)"
+              />
+              <label class="button" [for]="'type-' + player.id + '-' + playerType.value">
+                {{ playerType.label }}
+              </label>
+            }
+          </div>
+        </article>
+      } @empty {
+        <p class="player-list__empty">Players will appear here when they register.</p>
+      }
+    </section>
+  </main>
+}

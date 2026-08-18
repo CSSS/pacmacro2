@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -17,6 +18,11 @@ import {
   PlayerStatus,
   PlayerType,
 } from '../../core/game.models';
+import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+
+interface AdminLoginModel {
+  password: string;
+}
 
 @Component({
   selector: 'pac-admin-page',
@@ -24,6 +30,9 @@ import {
   styleUrl: './admin-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [AdminSocketService],
+  host: {
+    '[class.admin-authenticated]': 'authenticated()',
+  },
 })
 export class AdminPageComponent {
   private readonly api = inject(ApiService);
