@@ -1,5 +1,5 @@
-playerTypefrontend/src/app/pages/admin-page/admin-page.component.tsimport { HttpErrorResponse } from '@angular/common/http';
 import { signal, WritableSignal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
@@ -52,29 +52,14 @@ describe('AdminPageComponent', () => {
     },
   ];
   const api = {
-<<<<<<< HEAD
     getPlayers: vi.fn(() => of(refreshedPlayers)),
-=======
-    getPlayers: vi.fn(() =>
-      of([
-        {
-          id: 'CCCC',
-          type: PlayerType.Leader,
-          name: 'Current player',
-          reps: Representation.Ghost,
-          status: PlayerStatus.Connected,
-        },
-      ]),
-    ),
-    registerAdmin: vi.fn(() => of(void 0)),
->>>>>>> 8c74214 (refactor: move admin page to /admin)
     updatePlayer: vi.fn(() => of(undefined)),
+    registerAdmin: vi.fn(() => of(void 0)),
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
-<<<<<<< HEAD
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
     adminSocket.isReady.set(true);
@@ -83,33 +68,13 @@ describe('AdminPageComponent', () => {
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
     api.updatePlayer.mockReturnValue(of(undefined));
+    api.registerAdmin.mockClear();
+    api.registerAdmin.mockReturnValue(of(void 0));
     api.updateAdminFlag.mockReset();
     api.updateAdminFlag.mockReturnValue(of(undefined));
     api.resetGame.mockReset();
     api.resetGame.mockReturnValue(of(undefined));
 
-=======
-    adminSocket.start.mockClear();
-    adminSocket.players.set([
-      {
-        id: 'AAAA',
-        type: PlayerType.Player,
-        name: 'Ada',
-        reps: Representation.Pacman,
-        status: PlayerStatus.Connected,
-      },
-      {
-        id: 'BBBB',
-        type: PlayerType.Player,
-        name: 'Ben',
-        reps: Representation.Nothing,
-        status: PlayerStatus.Disconnected,
-      },
-    ]);
-    api.getPlayers.mockClear();
-    api.registerAdmin.mockClear();
-    api.registerAdmin.mockReturnValue(of(void 0));
->>>>>>> 8c74214 (refactor: move admin page to /admin)
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
       providers: [{ provide: ApiService, useValue: api }],
@@ -122,55 +87,20 @@ describe('AdminPageComponent', () => {
     fixture = TestBed.createComponent(AdminPageComponent);
   });
 
-<<<<<<< HEAD
-  it('starts the admin player feed and preserves the new-tab map link', () => {
-    const page = fixture.nativeElement as HTMLElement;
-    const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
-
-    expect(adminSocket.connect).toHaveBeenCalledOnce();
-    expect(link?.getAttribute('href')).toBe('/admin/map');
-    expect(link?.getAttribute('target')).toBe('_blank');
-    expect(link?.getAttribute('rel')).toBe('noopener');
-  });
-
-  it('disables Admin mutations until the socket snapshot is ready', () => {
-    adminSocket.isReady.set(false);
-    fixture.detectChanges();
-
-    expect(findButton('Flag Found')?.disabled).toBe(true);
-    expect(findButton('Reset Game')?.disabled).toBe(true);
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
-        ?.disabled,
-    ).toBe(true);
-
-    adminSocket.isReady.set(true);
-    fixture.detectChanges();
-
-    expect(findButton('Flag Found')?.disabled).toBe(false);
-    expect(findButton('Reset Game')?.disabled).toBe(false);
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
-        ?.disabled,
-    ).toBe(false);
-  });
-
-  it('renders the seven ordered type radios in independent groups', () => {
-=======
   it('shows the sign-in form instead of the dashboard before authentication', () => {
     fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('.auth-card')).not.toBeNull();
     expect(page.querySelector('.player-list')).toBeNull();
-    expect(adminSocket.start).not.toHaveBeenCalled();
+    expect(adminSocket.connect).not.toHaveBeenCalled();
   });
 
   it('starts the admin player feed after rendering when already signed in', () => {
     harness().authenticated.set(true);
     fixture.detectChanges();
 
-    expect(adminSocket.start).toHaveBeenCalledOnce();
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 
   it('requires the administrator password before calling the API', async () => {
@@ -198,7 +128,7 @@ describe('AdminPageComponent', () => {
     expect(page.querySelector('.auth-card')).not.toBeNull();
     expect(page.querySelector('.player-list')).toBeNull();
     expect(page.querySelector('.form-status')?.textContent).toContain('incorrect');
-    expect(adminSocket.start).not.toHaveBeenCalled();
+    expect(adminSocket.connect).not.toHaveBeenCalled();
   });
 
   it('reveals the dashboard and starts the player feed after a successful sign-in', async () => {
@@ -212,16 +142,49 @@ describe('AdminPageComponent', () => {
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('.auth-card')).toBeNull();
     expect(page.querySelector('.player-list')).not.toBeNull();
-    expect(adminSocket.start).toHaveBeenCalledOnce();
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 
-  it('grays out disconnected players and disables their state controls', async () => {
+  it('starts the admin player feed and preserves the new-tab map link', () => {
     harness().authenticated.set(true);
     fixture.detectChanges();
-    await fixture.whenStable();
+
+    const page = fixture.nativeElement as HTMLElement;
+    const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
+
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
+    expect(link?.getAttribute('href')).toBe('/admin/map');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener');
+  });
+
+  it('disables Admin mutations until the socket snapshot is ready', () => {
+    harness().authenticated.set(true);
+    adminSocket.isReady.set(false);
     fixture.detectChanges();
 
->>>>>>> 8c74214 (refactor: move admin page to /admin)
+    expect(findButton('Flag Found')?.disabled).toBe(true);
+    expect(findButton('Reset Game')?.disabled).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
+        ?.disabled,
+    ).toBe(true);
+
+    adminSocket.isReady.set(true);
+    fixture.detectChanges();
+
+    expect(findButton('Flag Found')?.disabled).toBe(false);
+    expect(findButton('Reset Game')?.disabled).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
+        ?.disabled,
+    ).toBe(false);
+  });
+
+  it('renders the seven ordered type radios in independent groups', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
     const expectedLabels = [
@@ -255,6 +218,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('shows Edible as Ghost-selected and disables offline player radios', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
     const connectedRadios = cards[0].querySelectorAll<HTMLInputElement>('input[type="radio"]');
@@ -269,6 +235,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('applies a connected player radio selection immediately', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const antipac = page.querySelector<HTMLInputElement>('#type-AAAA-2');
 
@@ -283,6 +252,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('demotes the existing Pacman when another player is selected as Pacman', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     page.querySelector<HTMLInputElement>('#type-CCCC-1')?.click();
     await fixture.whenStable();
@@ -298,6 +270,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('demotes only the previous holder when assigning a specialized leader role', async () => {
+    harness().authenticated.set(true);
     adminSocket.players.set([
       {
         id: 'AAAA',
@@ -328,6 +301,8 @@ describe('AdminPageComponent', () => {
   });
 
   it('restores server-backed selection when an immediate update fails', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
     api.updatePlayer.mockReturnValueOnce(throwError(() => new Error('update failed')));
     const page = fixture.nativeElement as HTMLElement;
     page.querySelector<HTMLInputElement>('#type-AAAA-3')?.click();
@@ -342,6 +317,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('replaces the Ghost mutation with a shared Flag Found toggle', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const button = findButton('Flag Found');
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     expect(button?.classList.contains('button-secondary')).toBe(true);
@@ -357,6 +335,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('rolls back a failed Admin flag update', async () => {
+    harness().authenticated.set(true);
     adminSocket.isFlagFound.set(true);
     api.updateAdminFlag.mockReturnValueOnce(throwError(() => new Error('update failed')));
     fixture.detectChanges();
@@ -375,7 +354,10 @@ describe('AdminPageComponent', () => {
   });
 
   it('resets connected and offline non-Leaders to Ghost while preserving Leaders', async () => {
+    harness().authenticated.set(true);
     adminSocket.isFlagFound.set(true);
+    fixture.detectChanges();
+
     const button = findButton('Reset Game');
     button?.click();
     await fixture.whenStable();
@@ -407,16 +389,15 @@ describe('AdminPageComponent', () => {
     expect(page.querySelector('.player-card strong')?.textContent).toContain('Current player');
   });
 
-<<<<<<< HEAD
   function findButton(label: string): HTMLButtonElement | undefined {
     const page = fixture.nativeElement as HTMLElement;
     return [...page.querySelectorAll<HTMLButtonElement>('button')].find(
       (button) => button.textContent?.trim() === label,
     );
-=======
+  }
+
   function harness(): AdminPageHarness {
     return fixture.componentInstance as unknown as AdminPageHarness;
->>>>>>> 8c74214 (refactor: move admin page to /admin)
   }
 });
 
