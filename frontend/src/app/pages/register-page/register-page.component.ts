@@ -12,6 +12,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { PlayerNameService } from '../../core/player-name.service';
 
 interface RegistrationModel {
   name: string;
@@ -28,6 +29,7 @@ export class RegisterPageComponent {
   private readonly api = inject(ApiService);
   private readonly credentials = inject(CredentialsService);
   private readonly router = inject(Router);
+  private readonly playerName = inject(PlayerNameService);
 
   protected readonly registrationModel = signal<RegistrationModel>({
     name: '',
@@ -62,6 +64,7 @@ export class RegisterPageComponent {
         throw new Error('The API returned an empty player ID.');
       }
       this.credentials.save({ id });
+      this.playerName.save(trimmedName);
       await this.router.navigateByUrl('/');
     } catch (error) {
       this.status.set('Registration failed. Check your details and the API connection.');

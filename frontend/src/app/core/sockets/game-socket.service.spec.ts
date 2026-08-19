@@ -297,4 +297,118 @@ describe('GameSocketService', () => {
     expect(service.state()).toBe('error');
     expect(service.status()).toContain('Register as admin again in this browser');
   });
+
+  it('expires the session after three consecutive failed player connections', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onSessionExpired = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+    MockGameWebSocket.instances[2].serverClose(false);
+    vi.runAllTimers();
+
+    expect(service.sessionExpired()).toBe(true);
+    expect(service.state()).toBe('error');
+    expect(service.status()).toContain('Session has expired as game server restarted.');
+    expect(MockGameWebSocket.instances).toHaveLength(3);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
+  });
+
+  it('does not invoke the session-expired callback after fewer than three failures', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onSessionExpired = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+
+    expect(service.sessionExpired()).toBe(false);
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
+  it('keeps reconnecting a player socket after fewer than three failures', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.start('ABCD', () => undefined);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+
+    expect(service.sessionExpired()).toBe(false);
+    expect(service.state()).toBe('connecting');
+    expect(MockGameWebSocket.instances).toHaveLength(3);
+  });
+
+  it('resets the failure counter when a player connection succeeds', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.start('ABCD', () => undefined);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+
+    MockGameWebSocket.instances[2].open();
+    MockGameWebSocket.instances[2].serverClose(false);
+    vi.advanceTimersByTime(4000);
+    MockGameWebSocket.instances[3].serverClose(false);
+    vi.runAllTimers();
+
+    expect(service.sessionExpired()).toBe(false);
+    expect(MockGameWebSocket.instances).toHaveLength(5);
+  });
+
+  it('never expires the session for a viewer socket', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.startViewer();
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+    MockGameWebSocket.instances[2].serverClose(false);
+    vi.runAllTimers();
+
+    expect(service.sessionExpired()).toBe(false);
+    expect(MockGameWebSocket.instances.length).toBeGreaterThan(3);
+  });
+
+  it('start and stop clear an expired session', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.start('ABCD', () => undefined);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+    MockGameWebSocket.instances[2].serverClose(false);
+    vi.runAllTimers();
+
+    expect(service.sessionExpired()).toBe(true);
+
+    service.stop();
+    expect(service.sessionExpired()).toBe(false);
+
+    service.start('ABCD', () => undefined);
+    expect(service.sessionExpired()).toBe(false);
+    expect(MockGameWebSocket.instances).toHaveLength(4);
+  });
 });

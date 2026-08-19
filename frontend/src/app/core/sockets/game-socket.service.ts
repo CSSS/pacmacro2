@@ -29,18 +29,25 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private playerId: string | null = null;
   private mode: SocketMode | null = null;
   private onConnected: (() => void) | null = null;
+  private onSessionExpired: (() => void) | null = null;
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
+  private consecutiveFailures = 0;
   private readonly statusMessage = signal<string | null>(null);
 
   readonly players = signal<Record<string, LivePlayer>>({});
   readonly isFlagFound = signal(false);
+  readonly sessionExpired = signal(false);
+  readonly MAX_FAILED_ATTEMPTS = 3;
 
-  start(id: string, onConnected: () => void): void {
+  start(id: string, onConnected: () => void, onSessionExpired: () => void = () => undefined): void {
     this.stop();
     this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
+    this.onSessionExpired = onSessionExpired;
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
     this.resume();
   }
 
@@ -72,8 +79,11 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.mode = null;
     this.playerId = null;
     this.onConnected = null;
+    this.onSessionExpired = null;
     this.reconnecting = false;
     this.statusMessage.set(null);
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
     this.disconnect();
   }
 
@@ -96,11 +106,31 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.players.set({});
     this.reconnecting = false;
     this.statusMessage.set(null);
+    this.consecutiveFailures = 0;
     this.onConnected?.();
   }
 
   protected override onSocketClose(): void {
     this.reconnecting = true;
+  }
+
+  protected override shouldReconnect(closeEvent: CloseEvent): boolean {
+    if (this.mode !== 'player') {
+      return true;
+    }
+
+    this.consecutiveFailures++;
+
+    if (this.consecutiveFailures >= this.MAX_FAILED_ATTEMPTS) {
+      this.sessionExpired.set(true);
+      this.statusMessage.set(
+        'Session has expired as game server restarted.',
+      );
+      this.onSessionExpired?.();
+      return false; 
+    }
+
+    return true; 
   }
 
   protected override onSocketError(): void {

@@ -19,6 +19,7 @@ import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { PlayerNameService } from '../../core/player-name.service';
 
 @Component({
   selector: 'pac-game-page',
@@ -34,6 +35,7 @@ export class GamePageComponent {
   private readonly credentials = inject(CredentialsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly playerName = inject(PlayerNameService);
 
   protected readonly socket = inject(GameSocketService);
   protected readonly geolocation = inject(GeolocationService);
@@ -41,6 +43,7 @@ export class GamePageComponent {
   protected readonly map = signal<MapInfo | null>(null);
   protected readonly selfId = signal('');
   protected readonly pageStatus = signal('Loading the game map…');
+
   protected readonly selfSummary = computed(() => {
     const player = this.socket.players()[this.selfId()]?.player;
     return player ? `${player.name} (${player.id}) is ${typeLabel(player.type)}` : '';
@@ -66,6 +69,36 @@ export class GamePageComponent {
 
   protected async toggleWakeLock(event: Event): Promise<void> {
     await this.wakeLock.setEnabled((event.target as HTMLInputElement).checked);
+  }
+
+  private async autoReregister(): Promise<void> {
+    const name = this.playerName.get();
+    if (!name) {
+      this.credentials.clear();
+      this.socket.stop();
+      await this.router.navigateByUrl('/register');
+      return;
+    }
+
+    this.pageStatus.set('Re-registering…');
+
+    try {
+      const response = await firstValueFrom(this.api.registerPlayer(name));
+      const id = response.id.trim();
+      if (!id) {
+        throw new Error('The API returned an empty player ID.');
+      }
+
+      this.credentials.save({ id });
+      this.selfId.set(id);
+      this.pageStatus.set('Re-registered. Reconnecting…');
+      this.connectAs(id);
+    } catch {
+      this.credentials.clear();
+      this.socket.stop();
+      this.pageStatus.set('Could not re-register. Redirecting…');
+      await this.router.navigateByUrl('/register');
+    }
   }
 
   private async initialize(): Promise<void> {
@@ -96,10 +129,18 @@ export class GamePageComponent {
     this.browserWindow.document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.browserWindow.addEventListener('online', this.onOnline);
     this.browserWindow.addEventListener('offline', this.onOffline);
-    this.socket.start(credentials.id, () => {
-      this.pageStatus.set('Connected to PacMacro.');
-      this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
-    });
+    this.connectAs(credentials.id);
+  }
+
+  private connectAs(id: string): void {
+    this.socket.start(
+      id,
+      () => {
+        this.pageStatus.set('Connected to PacMacro.');
+        this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
+      },
+      () => void this.autoReregister(),
+    );
   }
 
   private cleanup(): void {
