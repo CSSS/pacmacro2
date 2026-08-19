@@ -37,6 +37,7 @@ export class GamePageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly playerName = inject(PlayerNameService);
+  private readonly reregistering = signal(false);
 
   protected readonly socket = inject(GameSocketService);
   protected readonly geolocation = inject(GeolocationService);
@@ -45,7 +46,6 @@ export class GamePageComponent {
   protected readonly selfId = signal('');
   protected readonly pageStatus = signal('Loading the game map…');
 
-  private readonly reregistering = signal(false);
   protected readonly selfSummary = computed(() => {
     const player = this.socket.players()[this.selfId()]?.player;
     return player ? `${player.name} (${player.id}) is ${typeLabel(player.type)}` : '';

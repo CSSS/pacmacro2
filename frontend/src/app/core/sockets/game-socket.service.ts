@@ -31,8 +31,9 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private onConnected: (() => void) | null = null;
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
-  private readonly statusMessage = signal<string | null>(null);
   private consecutiveFailures = 0;
+  private readonly statusMessage = signal<string | null>(null);
+
   readonly players = signal<Record<string, LivePlayer>>({});
   readonly isFlagFound = signal(false);
   readonly sessionExpired = signal(false);
@@ -100,8 +101,8 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     // Every connection receives a fresh list of active players. Clearing the
     // cache removes disconnects that may have been missed while unavailable.
     this.players.set({});
-    this.statusMessage.set(null);
     this.reconnecting = false;
+    this.statusMessage.set(null);
     this.consecutiveFailures = 0;
     this.onConnected?.();
   }
