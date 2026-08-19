@@ -29,6 +29,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private playerId: string | null = null;
   private mode: SocketMode | null = null;
   private onConnected: (() => void) | null = null;
+  private onSessionExpired: (() => void) | null = null;
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
   private consecutiveFailures = 0;
@@ -39,11 +40,12 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   readonly sessionExpired = signal(false);
   readonly MAX_FAILED_ATTEMPTS = 3;
 
-  start(id: string, onConnected: () => void): void {
+  start(id: string, onConnected: () => void, onSessionExpired: () => void = () => undefined): void {
     this.stop();
     this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
+    this.onSessionExpired = onSessionExpired;
     this.consecutiveFailures = 0;
     this.sessionExpired.set(false);
     this.resume();
@@ -77,6 +79,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.mode = null;
     this.playerId = null;
     this.onConnected = null;
+    this.onSessionExpired = null;
     this.reconnecting = false;
     this.statusMessage.set(null);
     this.consecutiveFailures = 0;
@@ -123,6 +126,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       this.statusMessage.set(
         'Session has expired as game server restarted.',
       );
+      this.onSessionExpired?.();
       return false; 
     }
 

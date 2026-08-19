@@ -33,6 +33,7 @@ const playerName = {
   save: vi.fn(),
 };
 const router = { navigateByUrl: vi.fn() };
+let triggerSessionExpired: (() => void) | null = null;
 const gameSocket = {
   players: signal({
     SELF: {
@@ -48,7 +49,10 @@ const gameSocket = {
   status: signal('Connected.'),
   isFlagFound: signal(false),
   sessionExpired: signal(false),
-  start: vi.fn((_id: string, _onConnected: () => void) => gameSocket.sessionExpired.set(false)),
+  start: vi.fn((_id: string, _onConnected: () => void, onSessionExpired: () => void) => {
+    triggerSessionExpired = onSessionExpired;
+    gameSocket.sessionExpired.set(false);
+  }),
   stop: vi.fn(() => gameSocket.sessionExpired.set(false)),
   resume: vi.fn(),
   suspend: vi.fn(),
@@ -143,6 +147,7 @@ describe('GamePageComponent re-registration', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     gameSocket.sessionExpired.set(false);
+    triggerSessionExpired = null;
     await configureTestBed();
   });
 
@@ -164,7 +169,7 @@ describe('GamePageComponent re-registration', () => {
     playerName.get.mockReturnValue('');
     await render();
 
-    gameSocket.sessionExpired.set(true);
+    triggerSessionExpired?.();
     await flushReRegistration();
 
     expect(credentials.clear).toHaveBeenCalled();
@@ -177,7 +182,7 @@ describe('GamePageComponent re-registration', () => {
     api.registerPlayer.mockReturnValue(of({ id: 'NEWID' }));
     const page = await render();
 
-    gameSocket.sessionExpired.set(true);
+    triggerSessionExpired?.();
     await flushReRegistration();
 
     expect(api.registerPlayer).toHaveBeenCalledWith('Odin');
@@ -200,7 +205,7 @@ describe('GamePageComponent re-registration', () => {
     api.registerPlayer.mockReturnValue(throwError(() => new Error('API is down')));
     const page = await render();
 
-    gameSocket.sessionExpired.set(true);
+    triggerSessionExpired?.();
     await flushReRegistration();
 
     expect(credentials.clear).toHaveBeenCalled();
@@ -214,7 +219,7 @@ describe('GamePageComponent re-registration', () => {
     api.registerPlayer.mockReturnValue(of({ id: '   ' }));
     const page = await render();
 
-    gameSocket.sessionExpired.set(true);
+    triggerSessionExpired?.();
     await flushReRegistration();
 
     expect(credentials.clear).toHaveBeenCalled();

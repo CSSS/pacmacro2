@@ -4,7 +4,6 @@ import {
   Component,
   computed,
   DestroyRef,
-  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -37,7 +36,6 @@ export class GamePageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly playerName = inject(PlayerNameService);
-  private readonly reregistering = signal(false);
 
   protected readonly socket = inject(GameSocketService);
   protected readonly geolocation = inject(GeolocationService);
@@ -67,12 +65,6 @@ export class GamePageComponent {
   constructor() {
     afterNextRender(() => void this.initialize());
     this.destroyRef.onDestroy(() => this.cleanup());
-
-    effect(() => {
-      if (this.socket.sessionExpired() && !this.reregistering()) {
-        void this.autoReregister();
-      }
-    });
   }
 
   protected async toggleWakeLock(event: Event): Promise<void> {
@@ -88,7 +80,6 @@ export class GamePageComponent {
       return;
     }
 
-    this.reregistering.set(true);
     this.pageStatus.set('Re-registering…');
 
     try {
@@ -107,8 +98,6 @@ export class GamePageComponent {
       this.socket.stop();
       this.pageStatus.set('Could not re-register. Redirecting…');
       await this.router.navigateByUrl('/register');
-    } finally {
-      this.reregistering.set(false);
     }
   }
 
@@ -144,10 +133,14 @@ export class GamePageComponent {
   }
 
   private connectAs(id: string): void {
-    this.socket.start(id, () => {
-      this.pageStatus.set('Connected to PacMacro.');
-      this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
-    });
+    this.socket.start(
+      id,
+      () => {
+        this.pageStatus.set('Connected to PacMacro.');
+        this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
+      },
+      () => void this.autoReregister(),
+    );
   }
 
   private cleanup(): void {

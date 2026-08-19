@@ -302,7 +302,8 @@ describe('GameSocketService', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    service.start('ABCD', () => undefined);
+    const onSessionExpired = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired);
 
     MockGameWebSocket.instances[0].serverClose(false);
     vi.advanceTimersByTime(1000);
@@ -315,6 +316,23 @@ describe('GameSocketService', () => {
     expect(service.state()).toBe('error');
     expect(service.status()).toContain('Session has expired as game server restarted.');
     expect(MockGameWebSocket.instances).toHaveLength(3);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
+  });
+
+  it('does not invoke the session-expired callback after fewer than three failures', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onSessionExpired = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    vi.advanceTimersByTime(1000);
+    MockGameWebSocket.instances[1].serverClose(false);
+    vi.advanceTimersByTime(2000);
+
+    expect(service.sessionExpired()).toBe(false);
+    expect(onSessionExpired).not.toHaveBeenCalled();
   });
 
   it('keeps reconnecting a player socket after fewer than three failures', () => {
