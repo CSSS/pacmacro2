@@ -101,10 +101,7 @@ export class GamePageComponent {
       this.credentials.save({ id });
       this.selfId.set(id);
       this.pageStatus.set('Re-registered. Reconnecting…');
-      this.socket.start(id, () => {
-        this.pageStatus.set('Connected to PacMacro.');
-        this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
-      });
+      this.connectAs(id);
     } catch {
       this.credentials.clear();
       this.socket.stop();
@@ -143,7 +140,11 @@ export class GamePageComponent {
     this.browserWindow.document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.browserWindow.addEventListener('online', this.onOnline);
     this.browserWindow.addEventListener('offline', this.onOffline);
-    this.socket.start(credentials.id, () => {
+    this.connectAs(credentials.id);
+  }
+
+  private connectAs(id: string): void {
+    this.socket.start(id, () => {
       this.pageStatus.set('Connected to PacMacro.');
       this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
     });
