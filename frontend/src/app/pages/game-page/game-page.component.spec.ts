@@ -10,6 +10,7 @@ import { GeolocationService } from '../../core/geolocation.service';
 import { MapInfo, PlayerStatus, PlayerType } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GamePageComponent } from './game-page.component';
+import { PlayerNameService } from '../../core/player-name.service';
 
 describe('GamePageComponent leader link', () => {
   let fixture: ComponentFixture<GamePageComponent>;
@@ -34,6 +35,7 @@ describe('GamePageComponent leader link', () => {
     }),
     status: signal('Connected.'),
     isFlagFound: signal(false),
+    sessionExpired: signal(false),
     start: vi.fn(),
     stop: vi.fn(),
     resume: vi.fn(),
@@ -69,7 +71,8 @@ describe('GamePageComponent leader link', () => {
       imports: [GamePageComponent],
       providers: [
         { provide: ApiService, useValue: { getMap: vi.fn(() => of(map)) } },
-        { provide: CredentialsService, useValue: { get: () => ({ id: 'SELF' }) } },
+        { provide: CredentialsService, useValue: { get: () => ({ id: 'SELF' }), save: vi.fn(), clear: vi.fn() } },
+        { provide: PlayerNameService, useValue: { get: vi.fn(() => ''), save: vi.fn() } },
         { provide: Router, useValue: { navigateByUrl: vi.fn() } },
       ],
     })
@@ -110,6 +113,7 @@ describe('GamePageComponent leader link', () => {
 
   it('does not show the leader link to a non-leader', async () => {
     const page = await render(PlayerType.Ghost);
-    expect(page.querySelector('.game-page__leader-link')).toBeNull();
+    const link = page.querySelector<HTMLAnchorElement>('.game-page__leader-link a');
+    expect(link?.style.visibility).toBe('hidden');
   });
 });

@@ -47,4 +47,13 @@ export class CredentialsService {
     const attributes = `; Path=/; SameSite=Lax${secure}`;
     this.document.cookie = `id=${encodeURIComponent(credentials.id)}${attributes}`;
   }
+
+  clear(): void {
+    if (!this.browserWindow) {
+      return;
+    }
+
+    const secure = this.browserWindow.location.protocol === 'https:' ? '; Secure' : '';
+    this.document.cookie = `id=; Path=/; SameSite=Lax${secure}; Max-Age=0`;
+  }
 }

@@ -32,15 +32,19 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
   private readonly statusMessage = signal<string | null>(null);
-
+  private consecutiveFailures = 0;
   readonly players = signal<Record<string, LivePlayer>>({});
   readonly isFlagFound = signal(false);
+  readonly sessionExpired = signal(false);
+  readonly MAX_FAILED_ATTEMPTS = 3;
 
   start(id: string, onConnected: () => void): void {
     this.stop();
     this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
     this.resume();
   }
 
@@ -74,6 +78,8 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.onConnected = null;
     this.reconnecting = false;
     this.statusMessage.set(null);
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
     this.disconnect();
   }
 
@@ -94,13 +100,32 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     // Every connection receives a fresh list of active players. Clearing the
     // cache removes disconnects that may have been missed while unavailable.
     this.players.set({});
-    this.reconnecting = false;
     this.statusMessage.set(null);
+    this.reconnecting = false;
+    this.consecutiveFailures = 0;
     this.onConnected?.();
   }
 
   protected override onSocketClose(): void {
     this.reconnecting = true;
+  }
+
+  protected override shouldReconnect(closeEvent: CloseEvent): boolean {
+    if (this.mode !== 'player') {
+      return true;
+    }
+
+    this.consecutiveFailures++;
+
+    if (this.consecutiveFailures >= this.MAX_FAILED_ATTEMPTS) {
+      this.sessionExpired.set(true);
+      this.statusMessage.set(
+        'Session has expired as game server restarted.',
+      );
+      return false; 
+    }
+
+    return true; 
   }
 
   protected override onSocketError(): void {
