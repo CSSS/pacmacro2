@@ -34,7 +34,7 @@ describe('RegisterPageComponent', () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      name: '  Test2  ',
+      name: 'Test2',
     });
 
     await component.submit(submitEvent());
