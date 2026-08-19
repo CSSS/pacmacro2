@@ -58,8 +58,8 @@ Player sessions use only the ID returned by registration; the browser stores tha
 
 ## Administrator authentication
 
-Select **Admin** on the registration page and enter the password configured as `ADMIN_PASSWORD` on the Go backend.
-The backend verifies it once and returns a session-scoped HttpOnly cookie.
+Open `/admin` and enter the password configured as `ADMIN_PASSWORD` on the Go backend.
+The backend verifies it and returns a session-scoped HttpOnly cookie.
 The Angular application cannot read the cookie; the browser sends it automatically to `/api/admin` requests.
 
 The admin control panel opens `/admin/map` in a separate tab. That page connects to the authenticated `/api/admin/map/ws` endpoint and receives the normal live game feed without creating a player or sending coordinates. If the session cookie has expired, register as admin again before reopening the map.

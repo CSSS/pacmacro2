@@ -5,7 +5,6 @@ import { of } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
-import { RegistrationKind } from '../../core/game.models';
 import { RegisterPageComponent } from './register-page.component';
 
 describe('RegisterPageComponent', () => {
@@ -28,30 +27,11 @@ describe('RegisterPageComponent', () => {
     });
   });
 
-  it('registers an admin separately without saving player credentials', async () => {
-    const component = TestBed.createComponent(RegisterPageComponent)
-      .componentInstance as unknown as RegisterPageHarness;
-    component.registrationModel.set({
-      registrationKind: RegistrationKind.Admin,
-      name: 'Test',
-      adminPassword: 'top-secret',
-    });
-
-    await component.submit(submitEvent());
-
-    expect(api.registerAdmin).toHaveBeenCalledWith('Test', 'top-secret');
-    expect(api.registerPlayer).not.toHaveBeenCalled();
-    expect(credentials.save).not.toHaveBeenCalled();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/admin');
-  });
-
   it('keeps player registration on the player endpoint', async () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      registrationKind: RegistrationKind.Player,
       name: 'Test2',
-      adminPassword: '',
     });
 
     await component.submit(submitEvent());
@@ -62,38 +42,22 @@ describe('RegisterPageComponent', () => {
     expect(router.navigateByUrl).toHaveBeenCalledWith('/');
   });
 
-  it('offers only Player and Admin registration kinds', async () => {
-    const fixture = TestBed.createComponent(RegisterPageComponent);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const options = [
-      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLOptionElement>('option'),
-    ].map((option) => option.textContent?.trim());
-
-    expect(options).toEqual(['Player', 'Admin']);
-  });
-
   it('uses Signal Forms validation before calling the API', async () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      registrationKind: RegistrationKind.Admin,
-      name: 'Test',
-      adminPassword: '',
+      name: '   ',
     });
 
     await component.submit(submitEvent());
 
-    expect(api.registerAdmin).not.toHaveBeenCalled();
     expect(api.registerPlayer).not.toHaveBeenCalled();
   });
 });
 
 interface RegisterPageHarness {
   registrationModel: WritableSignal<{
-    registrationKind: RegistrationKind;
     name: string;
-    adminPassword: string;
   }>;
   submit(event: SubmitEvent): Promise<void>;
 }

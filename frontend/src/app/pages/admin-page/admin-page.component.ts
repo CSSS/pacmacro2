@@ -6,7 +6,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { form, FormField, required, submit as submitForm } from '@angular/forms/signals';
 import { firstValueFrom } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 
 import { AdminSocketService } from '../../core/sockets/admin-socket.service';
 import { ApiService } from '../../core/api.service';
@@ -17,13 +19,22 @@ import {
   PlayerStatus,
   PlayerType,
 } from '../../core/game.models';
+import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+
+interface AdminLoginModel {
+  password: string;
+}
 
 @Component({
   selector: 'pac-admin-page',
+  imports: [FormField, BrandHeaderComponent],
   templateUrl: './admin-page.component.html',
   styleUrl: './admin-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [AdminSocketService],
+  host: {
+    '[class.admin-authenticated]': 'authenticated()',
+  },
 })
 export class AdminPageComponent {
   private readonly api = inject(ApiService);
@@ -33,6 +44,7 @@ export class AdminPageComponent {
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
   protected readonly socketReady = this.adminSocket.isReady;
   protected readonly connectionStatus = this.adminSocket.status;
+  protected readonly authenticated = signal(false);
   protected readonly status = signal('');
   protected readonly loadingPlayers = signal(false);
   protected readonly bulkUpdating = signal(false);
@@ -48,8 +60,46 @@ export class AdminPageComponent {
       this.savingPlayerIds().size > 0,
   );
 
+  protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
+
+  protected readonly loginForm = form(this.loginModel, (login) => {
+    required(login.password, { message: 'Enter the administrator password.' });
+  });
+
   constructor() {
-    afterNextRender(() => this.adminSocket.connect());
+    afterNextRender(() => {
+      if (this.authenticated()) {
+        this.adminSocket.connect();
+      }
+    });
+  }
+
+  protected async submit(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    await submitForm(this.loginForm, {
+      action: async () => this.login(),
+      onInvalid: () => {
+        const firstError = this.loginForm().errorSummary()[0];
+        this.status.set(firstError?.message ?? 'Enter the administrator password.');
+      },
+    });
+  }
+
+  private async login(): Promise<void> {
+    const { password } = this.loginForm().value();
+    this.status.set('Signing in...');
+
+    try {
+      await firstValueFrom(this.api.registerAdmin(password));
+      this.authenticated.set(true);
+      this.adminSocket.connect();
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.status.set('The administrator password is incorrect.');
+      } else {
+        this.status.set('Could not sign in. Check the password and the API connection.');
+      }
+    }
   }
 
   protected isConnected(player: Player): boolean {

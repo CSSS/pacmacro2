@@ -24,12 +24,8 @@ export class ApiService {
     });
   }
 
-  registerAdmin(name: string, password: string): Observable<void> {
-    return this.http.post<void>(
-      '/api/admin/register',
-      { name, pass: password },
-      { withCredentials: true },
-    );
+  registerAdmin(password: string): Observable<void> {
+    return this.http.post<void>('/api/admin/register', { pass: password }, { withCredentials: true });
   }
 
   getPlayers(): Observable<Player[]> {

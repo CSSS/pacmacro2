@@ -1,4 +1,5 @@
-import { signal } from '@angular/core';
+import { signal, WritableSignal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 
@@ -53,6 +54,7 @@ describe('AdminPageComponent', () => {
   const api = {
     getPlayers: vi.fn(() => of(refreshedPlayers)),
     updatePlayer: vi.fn(() => of(undefined)),
+    registerAdmin: vi.fn(() => of(void 0)),
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
   };
@@ -66,6 +68,8 @@ describe('AdminPageComponent', () => {
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
     api.updatePlayer.mockReturnValue(of(undefined));
+    api.registerAdmin.mockClear();
+    api.registerAdmin.mockReturnValue(of(void 0));
     api.updateAdminFlag.mockReset();
     api.updateAdminFlag.mockReturnValue(of(undefined));
     api.resetGame.mockReset();
@@ -81,11 +85,70 @@ describe('AdminPageComponent', () => {
       .compileComponents();
 
     fixture = TestBed.createComponent(AdminPageComponent);
+  });
+
+  it('shows the sign-in form instead of the dashboard before authentication', () => {
     fixture.detectChanges();
-    await fixture.whenStable();
+
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).not.toBeNull();
+    expect(page.querySelector('.player-list')).toBeNull();
+    expect(adminSocket.connect).not.toHaveBeenCalled();
+  });
+
+  it('starts the admin player feed after rendering when already signed in', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
+  });
+
+  it('requires the administrator password before calling the API', async () => {
+    harness().loginModel.set({ password: '' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).not.toHaveBeenCalled();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.form-status')?.textContent).toContain('administrator password');
+  });
+
+  it('keeps the sign-in form when the administrator password is incorrect', async () => {
+    api.registerAdmin.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
+    harness().loginModel.set({ password: 'wrong' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).toHaveBeenCalledWith('wrong');
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).not.toBeNull();
+    expect(page.querySelector('.player-list')).toBeNull();
+    expect(page.querySelector('.form-status')?.textContent).toContain('incorrect');
+    expect(adminSocket.connect).not.toHaveBeenCalled();
+  });
+
+  it('reveals the dashboard and starts the player feed after a successful sign-in', async () => {
+    harness().loginModel.set({ password: 'secret' });
+    fixture.detectChanges();
+
+    await harness().submit(submitEvent());
+    fixture.detectChanges();
+
+    expect(api.registerAdmin).toHaveBeenCalledWith('secret');
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector('.auth-card')).toBeNull();
+    expect(page.querySelector('.player-list')).not.toBeNull();
+    expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 
   it('starts the admin player feed and preserves the new-tab map link', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const link = page.querySelector<HTMLAnchorElement>('.admin-map-link');
 
@@ -96,6 +159,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('disables Admin mutations until the socket snapshot is ready', () => {
+    harness().authenticated.set(true);
     adminSocket.isReady.set(false);
     fixture.detectChanges();
 
@@ -118,6 +182,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('renders the seven ordered type radios in independent groups', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
     const expectedLabels = [
@@ -151,6 +218,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('shows Edible as Ghost-selected and disables offline player radios', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const cards = page.querySelectorAll<HTMLElement>('.player-card');
     const connectedRadios = cards[0].querySelectorAll<HTMLInputElement>('input[type="radio"]');
@@ -165,6 +235,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('applies a connected player radio selection immediately', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     const antipac = page.querySelector<HTMLInputElement>('#type-AAAA-2');
 
@@ -179,6 +252,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('demotes the existing Pacman when another player is selected as Pacman', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     page.querySelector<HTMLInputElement>('#type-CCCC-1')?.click();
     await fixture.whenStable();
@@ -194,6 +270,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('demotes only the previous holder when assigning a specialized leader role', async () => {
+    harness().authenticated.set(true);
     adminSocket.players.set([
       {
         id: 'AAAA',
@@ -224,6 +301,8 @@ describe('AdminPageComponent', () => {
   });
 
   it('restores server-backed selection when an immediate update fails', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
     api.updatePlayer.mockReturnValueOnce(throwError(() => new Error('update failed')));
     const page = fixture.nativeElement as HTMLElement;
     page.querySelector<HTMLInputElement>('#type-AAAA-3')?.click();
@@ -238,6 +317,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('replaces the Ghost mutation with a shared Flag Found toggle', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const button = findButton('Flag Found');
     expect(button?.getAttribute('aria-pressed')).toBe('false');
     expect(button?.classList.contains('button-secondary')).toBe(true);
@@ -253,6 +335,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('rolls back a failed Admin flag update', async () => {
+    harness().authenticated.set(true);
     adminSocket.isFlagFound.set(true);
     api.updateAdminFlag.mockReturnValueOnce(throwError(() => new Error('update failed')));
     fixture.detectChanges();
@@ -271,7 +354,10 @@ describe('AdminPageComponent', () => {
   });
 
   it('resets connected and offline non-Leaders to Ghost while preserving Leaders', async () => {
+    harness().authenticated.set(true);
     adminSocket.isFlagFound.set(true);
+    fixture.detectChanges();
+
     const button = findButton('Reset Game');
     button?.click();
     await fixture.whenStable();
@@ -291,6 +377,9 @@ describe('AdminPageComponent', () => {
   });
 
   it('can manually refresh the current player list', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
     const page = fixture.nativeElement as HTMLElement;
     findButton('Refresh Players')?.click();
     await fixture.whenStable();
@@ -306,4 +395,18 @@ describe('AdminPageComponent', () => {
       (button) => button.textContent?.trim() === label,
     );
   }
+
+  function harness(): AdminPageHarness {
+    return fixture.componentInstance as unknown as AdminPageHarness;
+  }
 });
+
+interface AdminPageHarness {
+  authenticated: WritableSignal<boolean>;
+  loginModel: WritableSignal<{ password: string }>;
+  submit(event: SubmitEvent): Promise<void>;
+}
+
+function submitEvent(): SubmitEvent {
+  return { preventDefault: vi.fn() } as unknown as SubmitEvent;
+}
