@@ -1,12 +1,9 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {
   form,
   FormField,
-  hidden,
   maxLength,
   pattern,
-  required,
   submit as submitForm,
 } from '@angular/forms/signals';
 import { Router } from '@angular/router';
@@ -14,11 +11,9 @@ import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
-import { RegistrationKind } from '../../core/game.models';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
 
 interface RegistrationModel {
-  registrationKind: RegistrationKind;
   name: string;
 }
 
@@ -35,16 +30,10 @@ export class RegisterPageComponent {
   private readonly router = inject(Router);
 
   protected readonly registrationModel = signal<RegistrationModel>({
-    registrationKind: RegistrationKind.Player,
     name: '',
   });
 
   protected readonly registrationForm = form(this.registrationModel, (registration) => {
-    required(registration.registrationKind);
-    required(registration.name, { message: 'Enter your name.' });
-    hidden(registration.name, {
-      when: ({ valueOf }) => valueOf(registration.registrationKind) === RegistrationKind.Admin,
-    });
     pattern(registration.name, /\S/, { message: 'Enter your name.' });
     maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
   });
@@ -63,8 +52,7 @@ export class RegisterPageComponent {
   }
 
   private async register(): Promise<void> {
-    const { registrationKind, name } = this.registrationForm().value();
-    const trimmedName = name.trim();
+    const trimmedName = this.registrationForm().value().name.trim();
     this.status.set('Registering...');
 
     try {
@@ -76,11 +64,7 @@ export class RegisterPageComponent {
       this.credentials.save({ id });
       await this.router.navigateByUrl('/');
     } catch (error) {
-      if (error instanceof HttpErrorResponse && error.status === 401) {
-        this.status.set('The administrator password is incorrect.');
-      } else {
-        this.status.set('Registration failed. Check your details and the API connection.');
-      }
+      this.status.set('Registration failed. Check your details and the API connection.');
     }
   }
 }

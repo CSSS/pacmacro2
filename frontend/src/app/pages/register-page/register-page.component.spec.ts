@@ -5,7 +5,6 @@ import { of } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
-import { RegistrationKind } from '../../core/game.models';
 import { RegisterPageComponent } from './register-page.component';
 
 describe('RegisterPageComponent', () => {
@@ -32,7 +31,6 @@ describe('RegisterPageComponent', () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      registrationKind: RegistrationKind.Player,
       name: 'Test2',
     });
 
@@ -48,7 +46,6 @@ describe('RegisterPageComponent', () => {
     const component = TestBed.createComponent(RegisterPageComponent)
       .componentInstance as unknown as RegisterPageHarness;
     component.registrationModel.set({
-      registrationKind: RegistrationKind.Player,
       name: '   ',
     });
 
@@ -60,7 +57,6 @@ describe('RegisterPageComponent', () => {
 
 interface RegisterPageHarness {
   registrationModel: WritableSignal<{
-    registrationKind: RegistrationKind;
     name: string;
   }>;
   submit(event: SubmitEvent): Promise<void>;

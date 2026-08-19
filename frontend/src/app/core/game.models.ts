@@ -27,11 +27,6 @@ export enum PlayerType {
   FlagLeader = 7,
 }
 
-export enum RegistrationKind {
-  Player = 'player',
-  Admin = 'admin',
-}
-
 export enum PlayerStatus {
   Gone = 0,
   Disconnected = 1,
