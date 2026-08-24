@@ -129,7 +129,6 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       this.onSessionExpired?.();
       return false; 
     }
-
     return true; 
   }
 

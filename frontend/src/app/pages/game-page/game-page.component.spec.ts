@@ -10,7 +10,6 @@ import { GeolocationService } from '../../core/geolocation.service';
 import { MapInfo, PlayerStatus, PlayerType } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GamePageComponent } from './game-page.component';
-import { PlayerNameService } from '../../core/player-name.service';
 
 const map: MapInfo = {
   min: { latitude: 49.27, longitude: -122.92 },
@@ -26,11 +25,9 @@ const api = {
 const credentials = {
   get: vi.fn(() => ({ id: 'SELF' })),
   save: vi.fn(),
+  getPlayerName: vi.fn(() => ''),
+  savePlayerName: vi.fn(),
   clear: vi.fn(),
-};
-const playerName = {
-  get: vi.fn(() => ''),
-  save: vi.fn(),
 };
 const router = { navigateByUrl: vi.fn() };
 let triggerSessionExpired: (() => void) | null = null;
@@ -80,7 +77,6 @@ async function configureTestBed(): Promise<void> {
     providers: [
       { provide: ApiService, useValue: api },
       { provide: CredentialsService, useValue: credentials },
-      { provide: PlayerNameService, useValue: playerName },
       { provide: Router, useValue: router },
     ],
   })
@@ -166,7 +162,7 @@ describe('GamePageComponent re-registration', () => {
   }
 
   it('clears credentials and redirects to /register when no name is saved', async () => {
-    playerName.get.mockReturnValue('');
+    credentials.getPlayerName.mockReturnValue('');
     await render();
 
     triggerSessionExpired?.();
@@ -178,7 +174,7 @@ describe('GamePageComponent re-registration', () => {
   });
 
   it('re-registers with the saved name and reconnects', async () => {
-    playerName.get.mockReturnValue('Odin');
+    credentials.getPlayerName.mockReturnValue('Odin');
     api.registerPlayer.mockReturnValue(of({ id: 'NEWID' }));
     const page = await render();
 
@@ -201,7 +197,7 @@ describe('GamePageComponent re-registration', () => {
   });
 
   it('clears credentials and redirects when re-registration fails', async () => {
-    playerName.get.mockReturnValue('Odin');
+    credentials.getPlayerName.mockReturnValue('Odin');
     api.registerPlayer.mockReturnValue(throwError(() => new Error('API is down')));
     const page = await render();
 
@@ -215,7 +211,7 @@ describe('GamePageComponent re-registration', () => {
   });
 
   it('treats an empty player ID from the API as a failure', async () => {
-    playerName.get.mockReturnValue('Odin');
+    credentials.getPlayerName.mockReturnValue('Odin');
     api.registerPlayer.mockReturnValue(of({ id: '   ' }));
     const page = await render();
 

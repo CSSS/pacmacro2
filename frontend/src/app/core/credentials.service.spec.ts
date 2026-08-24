@@ -18,11 +18,27 @@ describe('readCookie', () => {
 describe('CredentialsService', () => {
   let service: CredentialsService;
   let mockDocument: { cookie: string };
-  let mockWindow: { location: { protocol: string } };
+  let mockStorage: Record<string, string>;
+  let mockWindow: {
+    location: { protocol: string };
+    localStorage: {
+      getItem: (key: string) => string | null;
+      setItem: (key: string, value: string) => void;
+    };
+  };
 
   beforeEach(() => {
     mockDocument = { cookie: '' };
-    mockWindow = { location: { protocol: 'http:' } };
+    mockStorage = {};
+    mockWindow = {
+      location: { protocol: 'http:' },
+      localStorage: {
+        getItem: (key) => mockStorage[key] ?? null,
+        setItem: (key, value) => {
+          mockStorage[key] = value;
+        },
+      },
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -59,5 +75,72 @@ describe('CredentialsService', () => {
     service.clear();
 
     expect(mockDocument.cookie).toBe('id=ABC');
+  });
+
+  it('saves and retrieves the player name for auto re-registration', () => {
+    service.savePlayerName('Odin');
+
+    expect(service.getPlayerName()).toBe('Odin');
+  });
+
+  it('returns an empty player name when localStorage throws on get', () => {
+    TestBed.resetTestingModule();
+    const throwingWindow = {
+      location: { protocol: 'http:' },
+      localStorage: {
+        getItem: () => {
+          throw new Error('unavailable');
+        },
+        setItem: () => undefined,
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        CredentialsService,
+        { provide: DOCUMENT, useValue: mockDocument },
+        { provide: PAC_WINDOW, useValue: throwingWindow },
+      ],
+    });
+    service = TestBed.inject(CredentialsService);
+
+    expect(service.getPlayerName()).toBe('');
+  });
+
+  it('silently ignores localStorage errors when saving the player name', () => {
+    TestBed.resetTestingModule();
+    const throwingWindow = {
+      location: { protocol: 'http:' },
+      localStorage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('quota exceeded');
+        },
+      },
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        CredentialsService,
+        { provide: DOCUMENT, useValue: mockDocument },
+        { provide: PAC_WINDOW, useValue: throwingWindow },
+      ],
+    });
+    service = TestBed.inject(CredentialsService);
+
+    expect(() => service.savePlayerName('Odin')).not.toThrow();
+  });
+
+  it('returns an empty player name and ignores saves when PAC_WINDOW is null', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        CredentialsService,
+        { provide: DOCUMENT, useValue: mockDocument },
+        { provide: PAC_WINDOW, useValue: null },
+      ],
+    });
+    service = TestBed.inject(CredentialsService);
+
+    expect(service.getPlayerName()).toBe('');
+    expect(() => service.savePlayerName('Odin')).not.toThrow();
   });
 });

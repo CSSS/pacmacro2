@@ -19,7 +19,6 @@ import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
-import { PlayerNameService } from '../../core/player-name.service';
 
 @Component({
   selector: 'pac-game-page',
@@ -35,7 +34,6 @@ export class GamePageComponent {
   private readonly credentials = inject(CredentialsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
-  private readonly playerName = inject(PlayerNameService);
 
   protected readonly socket = inject(GameSocketService);
   protected readonly geolocation = inject(GeolocationService);
@@ -72,7 +70,7 @@ export class GamePageComponent {
   }
 
   private async autoReregister(): Promise<void> {
-    const name = this.playerName.get();
+    const name = this.credentials.getPlayerName();
     if (!name) {
       this.credentials.clear();
       this.socket.stop();

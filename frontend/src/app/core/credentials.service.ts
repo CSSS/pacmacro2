@@ -4,6 +4,8 @@ import { inject, Service } from '@angular/core';
 import { PAC_WINDOW } from './browser-window.token';
 import { Credentials } from './game.models';
 
+const PLAYER_NAME_KEY = 'playerName';
+
 export function readCookie(cookieHeader: string, name: string): string {
   const prefix = `${name}=`;
   const value = cookieHeader
@@ -46,6 +48,22 @@ export class CredentialsService {
     const secure = this.browserWindow.location.protocol === 'https:' ? '; Secure' : '';
     const attributes = `; Path=/; SameSite=Lax${secure}`;
     this.document.cookie = `id=${encodeURIComponent(credentials.id)}${attributes}`;
+  }
+
+  getPlayerName(): string {
+    try {
+      return this.browserWindow?.localStorage.getItem(PLAYER_NAME_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  savePlayerName(name: string): void {
+    try {
+      this.browserWindow?.localStorage.setItem(PLAYER_NAME_KEY, name);
+    } catch {
+      // Local storage may be unavailable or full; re-registration can fall back to the form.
+    }
   }
 
   clear(): void {

@@ -11,8 +11,8 @@ const (
 	AdminEventSnapshot = "snapshot"
 	AdminEventUpsert   = "upsert"
 	AdminEventFlag     = "flag"
-	AdminEventShutdown = "shutdown" // server is shutting down gracefully; admin should reconnect
-	AdminEventReset    = "reset"    // game was reset; admin should reconnect
+	AdminEventShutdown = "shutdown" 
+	AdminEventReset    = "reset"   
 )
 
 type AdminSocketMessage struct {
