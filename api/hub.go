@@ -23,6 +23,12 @@ type Hub struct {
 	inform       chan PlayerID
 	state        chan GameState
 	clearOffline chan chan struct{}
+	shutdown     chan shutdownEvent
+}
+
+type shutdownEvent struct { 
+	command string
+	done 	chan struct{}
 }
 
 func NewHub(players *Players, games ...*Game) *Hub {
@@ -38,6 +44,7 @@ func NewHub(players *Players, games ...*Game) *Hub {
 		inform:             make(chan PlayerID),
 		state:              make(chan GameState),
 		clearOffline:       make(chan chan struct{}),
+		shutdown:           make(chan shutdownEvent),
 	}
 	if len(games) > 0 {
 		hub.game = games[0]
@@ -61,8 +68,11 @@ func (h *Hub) Run() {
 		case done := <-h.clearOffline:
 			h.clearOfflineLocations()
 			close(done)
+		case event := <-h.shutdown:
+			h.broadcastShutDown(event.command)
+			close(event.done)
 		}
-	}
+	}	
 }
 
 func isPrivateMapRole(playerType PlayerType) bool {
@@ -418,5 +428,15 @@ func (h *Hub) clearOfflineLocations() {
 	for playerID := range h.offlineCoordinates {
 		delete(h.offlineCoordinates, playerID)
 		h.broadcastRemove(playerID, onlyViewers, nil)
+	}
+}
+
+func (h *Hub) broadcastShutDown(command string) {
+	message, err := json.Marshal(Message{Command: command})
+	if err != nil {
+		return
+	}
+	for connection := range h.connections {
+		h.enqueue(connection, message)
 	}
 }

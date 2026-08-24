@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"pacmacro/api"
@@ -81,5 +84,21 @@ func main() {
 
 	// PacMacro API is served on port 49152.
 	// this should be proxied inside the web server used.
-	log.Fatal(http.ListenAndServe(port, nil))
+	go func() {
+		if err := http.ListenAndServe(port, nil); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+	}()
+
+	// Block until SIGINT (Ctrl+C) or SIGTERM (systemd stop/restart).
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	fmt.Println("Shutdown signal received. Notifying players...")
+	sock.BroadcastShutDown(api.CMD_SHUTDOWN)
+
+	// Give write pumps ~1 second to flush the shutdown message before exiting.
+	time.Sleep(1 * time.Second)
+	fmt.Println("Server exiting.")
 }

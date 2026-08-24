@@ -274,6 +274,12 @@ func TestAdminResetClearsOfflineLocationsButPreservesActiveCoordinates(t *testin
 	if coordinate := sockets.hub.coordinates[activeID]; coordinate != activeCoordinate {
 		t.Errorf("active coordinate after reset = %#v, want %#v", coordinate, activeCoordinate)
 	}
+	// ServeReset now broadcasts CMD_RESET before wiping state so that
+	// connected players know to re-register. Consume that message first.
+	resetMsg := receiveTestMessage(t, viewer)
+	if resetMsg.Command != CMD_RESET {
+		t.Errorf("expected reset signal first, got command = %q", resetMsg.Command)
+	}
 	message := receiveTestMessage(t, viewer)
 	if message.Command != CMD_REMOVE || message.Data != string(offlineID) {
 		t.Errorf("Admin reset location removal = %#v", message)

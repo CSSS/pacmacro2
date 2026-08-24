@@ -200,6 +200,21 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       return;
     }
 
+    if (message.command === 'shutdown') {
+      // Server is restarting cleanly — let the existing retry pipeline
+      // reconnect automatically. Just show a friendly status message.
+      this.statusMessage.set('Server is restarting. Reconnecting automatically…');
+      return;
+    }
+
+    if (message.command === 'reset') {
+      // Game was reset — this player's ID is no longer valid.
+      this.statusMessage.set('The game was reset. Redirecting to registration…');
+      this.sessionExpired.set(true);
+      this.onSessionExpired?.();
+      return;
+    }
+
     if (message.command === 'remove') {
       this.players.update((players) => {
         if (!(message.data in players)) {
@@ -262,6 +277,8 @@ function isSocketMessage(value: unknown): value is SocketMessage {
 
   switch (value['command']) {
     case 'remove':
+    case 'shutdown':
+    case 'reset':
       return true;
     case 'inform':
     case 'move':
