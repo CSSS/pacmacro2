@@ -31,6 +31,22 @@ func TestPlayerStaysConnectedUntilLastSocketDisconnects(t *testing.T) {
 	}
 }
 
+func TestBroadcastShutdownQueuesShutdownCommand(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	hub := NewHub(players)
+	connection := newTestConnection(playerID)
+	hub.registerConnection(connection)
+	drainTestMessages(connection)
+
+	hub.broadcastShutDown(CMD_SHUTDOWN)
+	message := receiveTestMessage(t, connection)
+	if message.Command != CMD_SHUTDOWN {
+		t.Errorf("shutdown command = %q, want %q", message.Command, CMD_SHUTDOWN)
+	}
+}
+
 func TestGameStateSnapshotAndBroadcastDoNotChangePlayerConnectionCounts(t *testing.T) {
 	players := new(Players)
 	players.Init()

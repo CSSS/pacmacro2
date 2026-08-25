@@ -30,6 +30,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private mode: SocketMode | null = null;
   private onConnected: (() => void) | null = null;
   private onSessionExpired: (() => void) | null = null;
+  private onServerShutdown: (() => void) | null = null;
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
   private consecutiveFailures = 0;
@@ -40,12 +41,18 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   readonly sessionExpired = signal(false);
   readonly MAX_FAILED_ATTEMPTS = 3;
 
-  start(id: string, onConnected: () => void, onSessionExpired: () => void = () => undefined): void {
+  start(
+    id: string,
+    onConnected: () => void,
+    onSessionExpired: () => void = () => undefined,
+    onServerShutdown: () => void = () => undefined,
+  ): void {
     this.stop();
     this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
     this.onSessionExpired = onSessionExpired;
+    this.onServerShutdown = onServerShutdown;
     this.consecutiveFailures = 0;
     this.sessionExpired.set(false);
     this.resume();
@@ -80,6 +87,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.playerId = null;
     this.onConnected = null;
     this.onSessionExpired = null;
+    this.onServerShutdown = null;
     this.reconnecting = false;
     this.statusMessage.set(null);
     this.consecutiveFailures = 0;
@@ -89,6 +97,34 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
 
   sendCoordinate(coordinate: Coordinate): boolean {
     return this.mode === 'player' && isCoordinate(coordinate) && this.sendMessage(coordinate);
+  }
+
+  private endForServerShutdown(): void {
+    const mode = this.mode;
+    const onServerShutdown = this.onServerShutdown;
+
+    this.mode = null;
+    this.playerId = null;
+    this.onConnected = null;
+    this.onSessionExpired = null;
+    this.onServerShutdown = null;
+    this.reconnecting = false;
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
+
+    // Incrementing the connection identity before unsubscribing makes any
+    // queued retry or late close event belong to an obsolete connection.
+    this.disconnect();
+    this.state.set('shutdown');
+    this.statusMessage.set(
+      mode === 'player'
+        ? 'The server stopped. Register to join the next game.'
+        : 'The server stopped the admin map connection.',
+    );
+
+    if (mode === 'player') {
+      onServerShutdown?.();
+    }
   }
 
   setInitialState(state: GameState): void {
@@ -200,9 +236,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     }
 
     if (message.command === 'shutdown') {
-      // Server is restarting cleanly — let the existing retry pipeline
-      // reconnect automatically. Just show a friendly status message.
-      this.statusMessage.set('Server is restarting. Reconnecting automatically…');
+      this.endForServerShutdown();
       return;
     }
 

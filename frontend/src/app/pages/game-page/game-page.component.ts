@@ -59,6 +59,11 @@ export class GamePageComponent {
     this.geolocation.stop();
     this.socket.suspend('Offline. Waiting for a network connection…');
   };
+  private readonly onServerShutdown = () => {
+    this.geolocation.stop();
+    this.credentials.clear();
+    void this.router.navigateByUrl('/register', { state: { serverStopped: true } });
+  };
 
   constructor() {
     afterNextRender(() => void this.initialize());
@@ -138,6 +143,7 @@ export class GamePageComponent {
         this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
       },
       () => void this.autoReregister(),
+      this.onServerShutdown,
     );
   }
 

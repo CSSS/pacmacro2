@@ -11,6 +11,7 @@ export type TransportState =
   | 'offline' // No network activity detected
   | 'suspended' // The client has deliberately paused transport
   | 'revoked' // For leaders that have been demoted to non-leaders
+  | 'shutdown' // The server deliberately ended the session
   | 'error'; // An error has occurred, the client may be attempting to reconnect
 
 @Service({ autoProvided: false })
@@ -280,6 +281,9 @@ export abstract class WebSocketService<T> {
       }
       case 'revoked': {
         return 'Websocket access revoked.';
+      }
+      case 'shutdown': {
+        return 'The server has stopped this connection.';
       }
       case 'error': {
         return 'Error with the websocket.';

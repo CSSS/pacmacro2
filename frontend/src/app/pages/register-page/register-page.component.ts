@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {
   form,
@@ -27,10 +28,11 @@ interface RegistrationModel {
 export class RegisterPageComponent {
   private readonly api = inject(ApiService);
   private readonly credentials = inject(CredentialsService);
+  private readonly location = inject(Location);
   private readonly router = inject(Router);
 
   protected readonly registrationModel = signal<RegistrationModel>({
-    name: '',
+    name: this.credentials.getPlayerName() ?? '',
   });
 
   protected readonly registrationForm = form(this.registrationModel, (registration) => {
@@ -38,7 +40,11 @@ export class RegisterPageComponent {
     maxLength(registration.name, 80, { message: 'Your name must be 80 characters or fewer.' });
   });
 
-  protected readonly status = signal('');
+  protected readonly status = signal(
+    isServerStoppedNavigation(this.location.getState())
+      ? 'The server stopped. Register to join the next game.'
+      : '',
+  );
 
   protected async submit(event: SubmitEvent): Promise<void> {
     event.preventDefault();
@@ -68,4 +74,13 @@ export class RegisterPageComponent {
       this.status.set('Registration failed. Check your details and the API connection.');
     }
   }
+}
+
+function isServerStoppedNavigation(state: unknown): boolean {
+  return (
+    typeof state === 'object' &&
+    state !== null &&
+    'serverStopped' in state &&
+    state.serverStopped === true
+  );
 }

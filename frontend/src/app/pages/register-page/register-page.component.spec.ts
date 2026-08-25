@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
@@ -12,16 +13,19 @@ describe('RegisterPageComponent', () => {
     registerAdmin: vi.fn(() => of(void 0)),
     registerPlayer: vi.fn(() => of({ id: 'ABCD' })),
   };
-  const credentials = { save: vi.fn(), savePlayerName: vi.fn() };
+  const credentials = { save: vi.fn(), savePlayerName: vi.fn(), getPlayerName: vi.fn(() => '') };
+  const location = { getState: vi.fn(() => ({})) };
   const router = { navigateByUrl: vi.fn(() => Promise.resolve(true)) };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    location.getState.mockReturnValue({});
     TestBed.configureTestingModule({
       imports: [RegisterPageComponent],
       providers: [
         { provide: ApiService, useValue: api },
         { provide: CredentialsService, useValue: credentials },
+        { provide: Location, useValue: location },
         { provide: Router, useValue: router },
       ],
     });
@@ -56,12 +60,29 @@ describe('RegisterPageComponent', () => {
     expect(credentials.save).not.toHaveBeenCalled();
     expect(credentials.savePlayerName).not.toHaveBeenCalled();
   });
+
+  it('pre-fills the name from the saved player name', () => {
+    credentials.getPlayerName.mockReturnValue('SavedPlayer');
+    const component = TestBed.createComponent(RegisterPageComponent)
+      .componentInstance as unknown as RegisterPageHarness;
+
+    expect(component.registrationModel().name).toBe('SavedPlayer');
+  });
+
+  it('shows the shutdown message when routed from a stopped server', () => {
+    location.getState.mockReturnValue({ serverStopped: true });
+    const component = TestBed.createComponent(RegisterPageComponent)
+      .componentInstance as unknown as RegisterPageHarness;
+
+    expect(component.status()).toBe('The server stopped. Register to join the next game.');
+  });
 });
 
 interface RegisterPageHarness {
   registrationModel: WritableSignal<{
     name: string;
   }>;
+  status: WritableSignal<string>;
   submit(event: SubmitEvent): Promise<void>;
 }
 

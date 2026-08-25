@@ -11,8 +11,6 @@ const (
 	AdminEventSnapshot = "snapshot"
 	AdminEventUpsert   = "upsert"
 	AdminEventFlag     = "flag"
-	AdminEventShutdown = "shutdown" 
-	AdminEventReset    = "reset"   
 )
 
 type AdminSocketMessage struct {

@@ -31,6 +31,7 @@ const credentials = {
 };
 const router = { navigateByUrl: vi.fn() };
 let triggerSessionExpired: (() => void) | null = null;
+let triggerServerShutdown: (() => void) | null = null;
 const gameSocket = {
   players: signal({
     SELF: {
@@ -46,10 +47,18 @@ const gameSocket = {
   status: signal('Connected.'),
   isFlagFound: signal(false),
   sessionExpired: signal(false),
-  start: vi.fn((_id: string, _onConnected: () => void, onSessionExpired: () => void) => {
-    triggerSessionExpired = onSessionExpired;
-    gameSocket.sessionExpired.set(false);
-  }),
+  start: vi.fn(
+    (
+      _id: string,
+      _onConnected: () => void,
+      onSessionExpired: () => void,
+      onServerShutdown: () => void,
+    ) => {
+      triggerSessionExpired = onSessionExpired;
+      triggerServerShutdown = onServerShutdown;
+      gameSocket.sessionExpired.set(false);
+    },
+  ),
   stop: vi.fn(() => gameSocket.sessionExpired.set(false)),
   resume: vi.fn(),
   suspend: vi.fn(),
@@ -144,6 +153,7 @@ describe('GamePageComponent re-registration', () => {
     vi.clearAllMocks();
     gameSocket.sessionExpired.set(false);
     triggerSessionExpired = null;
+    triggerServerShutdown = null;
     await configureTestBed();
   });
 
@@ -194,6 +204,20 @@ describe('GamePageComponent re-registration', () => {
 
     expect(geolocation.start).toHaveBeenCalledWith(expect.any(Function));
     expect(page.textContent).toContain('Connected to PacMacro.');
+  });
+
+  it('clears the player session and redirects when the server shuts down', async () => {
+    await render();
+
+    triggerServerShutdown?.();
+    await flushReRegistration();
+
+    expect(geolocation.stop).toHaveBeenCalled();
+    expect(credentials.clear).toHaveBeenCalled();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/register', {
+      state: { serverStopped: true },
+    });
+    expect(api.registerPlayer).not.toHaveBeenCalled();
   });
 
   it('clears credentials and redirects when re-registration fails', async () => {
