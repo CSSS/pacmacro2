@@ -6,12 +6,12 @@ import { CredentialsService, readCookie } from './credentials.service';
 
 describe('readCookie', () => {
   it('reads and decodes an exact cookie name', () => {
-    expect(readCookie('theme=dark; id=AB%20CD; userid=wrong', 'id')).toBe('AB CD');
+    expect(readCookie('pacmacro_admin=token; id=AB%20CD; userid=wrong', 'id')).toBe('AB CD');
   });
 
   it('returns an empty string for missing or malformed values', () => {
     expect(readCookie('id=%E0%A4%A', 'id')).toBe('');
-    expect(readCookie('theme=dark', 'id')).toBe('');
+    expect(readCookie('pacmacro_admin=token', 'id')).toBe('');
   });
 });
 
@@ -52,7 +52,7 @@ describe('CredentialsService', () => {
 
   it.each(['http:', 'https:'] as const)('expires the id cookie over %s', (protocol) => {
     mockWindow.location.protocol = protocol;
-    mockDocument.cookie = 'id=ABC; theme=dark';
+    mockDocument.cookie = 'id=ABC; pacmacro_admin=token';
 
     service.clear();
 

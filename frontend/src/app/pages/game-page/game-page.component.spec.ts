@@ -160,15 +160,9 @@ describe('GamePageComponent re-registration', () => {
   async function render(): Promise<HTMLElement> {
     fixture = TestBed.createComponent(GamePageComponent);
     fixture.detectChanges();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await fixture.whenStable();
     fixture.detectChanges();
     return fixture.nativeElement as HTMLElement;
-  }
-
-  async function flushReRegistration(): Promise<void> {
-    fixture.detectChanges();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
   }
 
   it('clears credentials and redirects to /register when no name is saved', async () => {
@@ -176,11 +170,12 @@ describe('GamePageComponent re-registration', () => {
     await render();
 
     triggerSessionExpired?.();
-    await flushReRegistration();
+    await vi.waitFor(() => {
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
+    });
 
     expect(credentials.clear).toHaveBeenCalled();
     expect(gameSocket.stop).toHaveBeenCalled();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
   });
 
   it('re-registers with the saved name and reconnects', async () => {
@@ -189,7 +184,15 @@ describe('GamePageComponent re-registration', () => {
     const page = await render();
 
     triggerSessionExpired?.();
-    await flushReRegistration();
+    await vi.waitFor(() => {
+      expect(gameSocket.start).toHaveBeenLastCalledWith(
+        'NEWID',
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(Function),
+      );
+    });
+    fixture.detectChanges();
 
     expect(api.registerPlayer).toHaveBeenCalledWith('Odin');
     expect(credentials.save).toHaveBeenCalledWith({ id: 'NEWID' });
@@ -210,7 +213,6 @@ describe('GamePageComponent re-registration', () => {
     await render();
 
     triggerServerShutdown?.();
-    await flushReRegistration();
 
     expect(geolocation.stop).toHaveBeenCalled();
     expect(credentials.clear).toHaveBeenCalled();
@@ -226,11 +228,13 @@ describe('GamePageComponent re-registration', () => {
     const page = await render();
 
     triggerSessionExpired?.();
-    await flushReRegistration();
+    await vi.waitFor(() => {
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
+    });
+    fixture.detectChanges();
 
     expect(credentials.clear).toHaveBeenCalled();
     expect(gameSocket.stop).toHaveBeenCalled();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
     expect(page.textContent).toContain('Could not re-register. Redirecting…');
   });
 
@@ -240,11 +244,13 @@ describe('GamePageComponent re-registration', () => {
     const page = await render();
 
     triggerSessionExpired?.();
-    await flushReRegistration();
+    await vi.waitFor(() => {
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
+    });
+    fixture.detectChanges();
 
     expect(credentials.clear).toHaveBeenCalled();
     expect(gameSocket.stop).toHaveBeenCalled();
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
     expect(page.textContent).toContain('Could not re-register. Redirecting…');
   });
 });

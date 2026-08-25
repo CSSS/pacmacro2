@@ -93,6 +93,10 @@ describe('GameSocketService', () => {
     }
   });
 
+  function advanceToNextReconnect(): void {
+    vi.advanceTimersToNextTimer();
+  }
+
   it('uses the player URL, invokes the callback, and sends coordinates as JSON', () => {
     const onConnected = vi.fn();
     service.start('A B/C', onConnected);
@@ -265,7 +269,7 @@ describe('GameSocketService', () => {
 
     first.serverClose(wasClean);
     expect(service.status()).toContain('Admin map connection lost');
-    vi.advanceTimersByTime(1000);
+    advanceToNextReconnect();
 
     expect(MockGameWebSocket.instances).toHaveLength(2);
     const second = MockGameWebSocket.instances[1];
@@ -344,9 +348,9 @@ describe('GameSocketService', () => {
     service.start('ABCD', () => undefined, onSessionExpired);
 
     MockGameWebSocket.instances[0].serverClose(false);
-    vi.advanceTimersByTime(1000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[1].serverClose(false);
-    vi.advanceTimersByTime(2000);
+    advanceToNextReconnect();
 
     expect(service.sessionExpired()).toBe(false);
     expect(service.state()).toBe('connecting');
@@ -354,7 +358,6 @@ describe('GameSocketService', () => {
     expect(onSessionExpired).not.toHaveBeenCalled();
 
     MockGameWebSocket.instances[2].serverClose(false);
-    vi.runAllTimers();
 
     expect(service.sessionExpired()).toBe(true);
     expect(service.state()).toBe('error');
@@ -370,15 +373,15 @@ describe('GameSocketService', () => {
     service.start('ABCD', () => undefined);
 
     MockGameWebSocket.instances[0].serverClose(false);
-    vi.advanceTimersByTime(1000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[1].serverClose(false);
-    vi.advanceTimersByTime(2000);
+    advanceToNextReconnect();
 
     MockGameWebSocket.instances[2].open();
     MockGameWebSocket.instances[2].serverClose(false);
-    vi.advanceTimersByTime(4000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[3].serverClose(false);
-    vi.runAllTimers();
+    advanceToNextReconnect();
 
     expect(service.sessionExpired()).toBe(false);
     expect(MockGameWebSocket.instances).toHaveLength(5);
@@ -391,14 +394,14 @@ describe('GameSocketService', () => {
     service.startViewer();
 
     MockGameWebSocket.instances[0].serverClose(false);
-    vi.advanceTimersByTime(1000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[1].serverClose(false);
-    vi.advanceTimersByTime(2000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[2].serverClose(false);
-    vi.runAllTimers();
+    advanceToNextReconnect();
 
     expect(service.sessionExpired()).toBe(false);
-    expect(MockGameWebSocket.instances.length).toBeGreaterThan(3);
+    expect(MockGameWebSocket.instances).toHaveLength(4);
   });
 
   it('start and stop clear an expired session', () => {
@@ -408,11 +411,10 @@ describe('GameSocketService', () => {
     service.start('ABCD', () => undefined);
 
     MockGameWebSocket.instances[0].serverClose(false);
-    vi.advanceTimersByTime(1000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[1].serverClose(false);
-    vi.advanceTimersByTime(2000);
+    advanceToNextReconnect();
     MockGameWebSocket.instances[2].serverClose(false);
-    vi.runAllTimers();
 
     expect(service.sessionExpired()).toBe(true);
 
