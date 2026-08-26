@@ -1,9 +1,10 @@
 import {
-  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  input,
   signal,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -14,20 +15,23 @@ import { Player, PlayerStatus, PlayerType, typeLabel } from '../../core/game.mod
 import { LeaderSocketService } from '../../core/sockets/leader-socket.service';
 
 @Component({
-  selector: 'pac-leader-page',
-  templateUrl: './leader-page.component.html',
-  styleUrl: './leader-page.component.scss',
+  selector: 'pac-leader-overlay',
+  templateUrl: './leader-overlay.component.html',
+  styleUrl: './leader-overlay.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [LeaderSocketService],
 })
-export class LeaderPageComponent {
+export class LeaderOverlayComponent {
   private readonly api = inject(ApiService);
   protected readonly socket = inject(LeaderSocketService);
+
+  readonly active = input.required<boolean>();
 
   protected readonly leader = this.socket.leader;
   protected readonly players = this.socket.players;
   protected readonly isFlagFound = this.socket.isFlagFound;
   protected readonly status = signal('Loading leader controls…');
+  protected readonly collapsed = signal(false);
   protected readonly refreshing = signal(false);
   protected readonly flagSaving = signal(false);
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
@@ -44,7 +48,14 @@ export class LeaderPageComponent {
   protected readonly isReadOnlyLeader = computed(() => this.leader()?.type === PlayerType.Leader);
 
   constructor() {
-    afterNextRender(() => void this.initialize());
+    effect(() => {
+      if (this.active()) {
+        void this.initialize();
+      } else {
+        this.socket.stop();
+        this.collapsed.set(false);
+      }
+    });
   }
 
   protected isConnected(player: Player): boolean {

@@ -11,7 +11,7 @@ import { MapInfo, PlayerStatus, PlayerType } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GamePageComponent } from './game-page.component';
 
-describe('GamePageComponent leader link', () => {
+describe('GamePageComponent leader overlay', () => {
   let fixture: ComponentFixture<GamePageComponent>;
   const map: MapInfo = {
     min: { latitude: 49.27, longitude: -122.92 },
@@ -98,18 +98,16 @@ describe('GamePageComponent leader link', () => {
   }
 
   it.each([PlayerType.Leader, PlayerType.AntiPacLeader, PlayerType.FlagLeader])(
-    'opens /leader in a new tab for leader type %s',
+    'activates the leader overlay for leader type %s',
     async (playerType) => {
       const page = await render(playerType);
-      const link = page.querySelector<HTMLAnchorElement>('.game-page__leader-link a');
-      expect(link?.getAttribute('href')).toBe('/leader');
-      expect(link?.getAttribute('target')).toBe('_blank');
-      expect(link?.getAttribute('rel')).toBe('noopener');
+      expect(page.querySelector('.game-page__layout--with-panel')).not.toBeNull();
+      expect(page.querySelector('pac-leader-overlay')).not.toBeNull();
     },
   );
 
-  it('does not show the leader link to a non-leader', async () => {
+  it('does not activate the leader overlay for a non-leader', async () => {
     const page = await render(PlayerType.Ghost);
-    expect(page.querySelector('.game-page__leader-link')).toBeNull();
+    expect(page.querySelector('.game-page__layout--with-panel')).toBeNull();
   });
 });

@@ -30,8 +30,18 @@
   margin: 0.15rem 0;
 }
 
-.game-page__leader-link {
-  margin-block: 0.5rem 1rem;
+.game-page__layout {
+  display: block;
+  text-align: left;
+}
+
+@media (min-width: 48.0625rem) {
+  .game-page__layout--with-panel {
+    display: grid;
+    grid-template-columns: 1fr minmax(20rem, 24rem);
+    gap: 1rem;
+    align-items: start;
+  }
 }
 
 .game-page__wake-lock {
