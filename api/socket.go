@@ -36,9 +36,7 @@ type Sockets struct {
 	hub     *Hub
 }
 
-// BroadcastShutDown signals every client..
-// CMD_RESET keeps socket open so players can re-register.
-// CMD_SHUTDOWN closes everything. 
+// BroadcastShutDown signals every client about server shutdown.
 func (s *Sockets) BroadcastShutDown(command string) {
 	done := make(chan struct{})
 	s.hub.shutdown <- shutdownEvent{command: command, done: done}

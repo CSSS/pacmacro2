@@ -41,9 +41,9 @@ export class RegisterPageComponent {
   });
 
   protected readonly status = signal(
-    isServerStoppedNavigation(this.location.getState())
-      ? 'The server stopped. Register to join the next game.'
-      : '',
+    (this.location.getState() as { serverStopped?: boolean })?.serverStopped
+    ? 'The server stopped. Register to join the next game.'
+    : '',
   );
 
   protected async submit(event: SubmitEvent): Promise<void> {

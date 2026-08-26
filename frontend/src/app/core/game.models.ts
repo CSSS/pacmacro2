@@ -52,7 +52,7 @@ export interface LivePlayer {
 
 export interface SocketMessage {
   coordinate?: Coordinate;
-  command: 'inform' | 'move' | 'remove' | 'state' | 'shutdown' | 'reset' | string;
+  command: 'inform' | 'move' | 'remove' | 'state' | 'shutdown' | string;
   data: string;
 }
 

@@ -143,7 +143,6 @@ func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
 	}
-	a.sockets.BroadcastShutDown(CMD_RESET)
 	changed := a.players.ResetNonLeaders()
 	a.sockets.ClearOfflineLocations()
 	for _, player := range changed {

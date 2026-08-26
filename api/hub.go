@@ -27,8 +27,8 @@ type Hub struct {
 }
 
 type shutdownEvent struct { 
-	command string
-	done 	chan struct{}
+	command	string
+	done	chan struct{}
 }
 
 func NewHub(players *Players, games ...*Game) *Hub {

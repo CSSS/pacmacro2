@@ -174,6 +174,62 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 	}
 }
 
+func TestAdminResetPreservesConnectedSessionsAndLeaderAuthorization(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+
+	leaderID := players.New(TypeAntiPacLeader, "Leader", StatusDisc)
+	activeID := players.New(TypePacman, "Active", StatusDisc)
+	leaderConnection := newTestConnection(leaderID)
+	activeConnection := newTestConnection(activeID)
+	sockets.hub.registerConnection(leaderConnection)
+	sockets.hub.registerConnection(activeConnection)
+	drainTestMessages(leaderConnection)
+	drainTestMessages(activeConnection)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("reset status = %d, want 204", response.Code)
+	}
+
+	if len(players.players) != 2 {
+		t.Errorf("player count after reset = %d, want 2", len(players.players))
+	}
+	if leader := players.Get(leaderID); leader == nil || leader.Type != TypeAntiPacLeader {
+		t.Errorf("leader after reset = %#v, want AntiPac Leader", leader)
+	}
+	if active := players.Get(activeID); active == nil || active.Type != TypeGhost {
+		t.Errorf("active player after reset = %#v, want Ghost", active)
+	}
+	if !sockets.hub.hasConnectionForID(leaderID) || !sockets.hub.hasConnectionForID(activeID) {
+		t.Error("admin reset replaced a connected player session")
+	}
+	if leader, _, authorized := players.LeaderState(leaderID); !authorized || leader.ID != leaderID || leader.Type != TypeAntiPacLeader {
+		t.Errorf("leader authorization after reset = %#v, authorized %v", leader, authorized)
+	}
+
+	leaderUpdate := informPlayer(t, receiveTestMessage(t, leaderConnection))
+	if leaderUpdate.ID != activeID || leaderUpdate.Type != TypeGhost {
+		t.Errorf("leader's active-player reset update = %#v, want Ghost for %q", leaderUpdate, activeID)
+	}
+	updated := informPlayer(t, receiveTestMessage(t, activeConnection))
+	if updated.ID != activeID || updated.Type != TypeGhost {
+		t.Errorf("active reset update = %#v, want Ghost for %q", updated, activeID)
+	}
+	if len(leaderConnection.send) != 0 || len(activeConnection.send) != 0 {
+		t.Errorf("unexpected extra reset messages: leader=%d active=%d", len(leaderConnection.send), len(activeConnection.send))
+	}
+}
+
 func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	players := new(Players)
 	players.Init()
@@ -273,12 +329,6 @@ func TestAdminResetClearsOfflineLocationsButPreservesActiveCoordinates(t *testin
 	}
 	if coordinate := sockets.hub.coordinates[activeID]; coordinate != activeCoordinate {
 		t.Errorf("active coordinate after reset = %#v, want %#v", coordinate, activeCoordinate)
-	}
-	// ServeReset now broadcasts CMD_RESET before wiping state so that
-	// connected players know to re-register. Consume that message first.
-	resetMsg := receiveTestMessage(t, viewer)
-	if resetMsg.Command != CMD_RESET {
-		t.Errorf("expected reset signal first, got command = %q", resetMsg.Command)
 	}
 	message := receiveTestMessage(t, viewer)
 	if message.Command != CMD_REMOVE || message.Data != string(offlineID) {

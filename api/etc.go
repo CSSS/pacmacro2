@@ -22,7 +22,6 @@ const (
 	CMD_REMOVE = "remove" // remove a player marker without disclosing a location
 	CMD_STATE  = "state"  // inform clients of shared game state
 	CMD_SHUTDOWN = "shutdown" // inform clients of server shutdown
-	CMD_RESET = "reset" // inform clients of server reset
 
 	// player type
 	TypeHidden        PlayerType = 0
