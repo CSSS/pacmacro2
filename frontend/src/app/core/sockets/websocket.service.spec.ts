@@ -99,6 +99,11 @@ class MockRxWebSocket {
   }
 }
 
+function reconnectDelay(attempt: number): number {
+  const delays = WebSocketService.RECONNECT_DELAYS;
+  return delays[Math.min(attempt - 1, delays.length - 1)];
+}
+
 describe('WebSocketService', () => {
   let service: TestWebSocketService;
   let originalWebSocket: typeof WebSocket;
@@ -200,7 +205,7 @@ describe('WebSocketService', () => {
 
     first.serverClose(wasClean);
     expect(service.transportState()).toBe<TransportState>('connecting');
-    vi.advanceTimersByTime(999);
+    vi.advanceTimersByTime(reconnectDelay(1) - 1);
     expect(MockRxWebSocket.instances).toHaveLength(1);
     vi.advanceTimersByTime(1);
 
@@ -225,7 +230,7 @@ describe('WebSocketService', () => {
 
     Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
     window.dispatchEvent(new Event('online'));
-    vi.advanceTimersByTime(999);
+    vi.advanceTimersByTime(reconnectDelay(1) - 1);
     expect(MockRxWebSocket.instances).toHaveLength(1);
     vi.advanceTimersByTime(1);
     expect(MockRxWebSocket.instances).toHaveLength(2);
@@ -257,7 +262,7 @@ describe('WebSocketService', () => {
 
     expect(service.requestReconnect('revoked')).toBe(true);
     expect(service.transportState()).toBe('revoked');
-    vi.advanceTimersByTime(999);
+    vi.advanceTimersByTime(reconnectDelay(1) - 1);
     expect(MockRxWebSocket.instances).toHaveLength(1);
     vi.advanceTimersByTime(1);
 

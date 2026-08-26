@@ -47,6 +47,96 @@ func TestBroadcastShutdownQueuesShutdownCommand(t *testing.T) {
 	}
 }
 
+func TestBroadcastShutdownEvictsQueuedMessages(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	hub := NewHub(players)
+	connection := &Conn{
+		playerID: playerID,
+		role:     playerConnection,
+		send:     make(chan []byte, 2),
+	}
+	hub.connections[connection] = struct{}{}
+	connection.send <- []byte("stale move")
+	connection.send <- []byte("stale state")
+
+	hub.broadcastShutDown(CMD_SHUTDOWN)
+
+	if _, exists := hub.connections[connection]; !exists {
+		t.Fatal("connection was unregistered after successful prioritized delivery")
+	}
+	if len(connection.send) != 1 {
+		t.Fatalf("queued messages = %d, want 1", len(connection.send))
+	}
+	if message := receiveTestMessage(t, connection); message.Command != CMD_SHUTDOWN {
+		t.Errorf("shutdown command = %q, want %q", message.Command, CMD_SHUTDOWN)
+	}
+}
+
+func TestBroadcastShutdownUnregistersUndeliverableConnection(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	hub := NewHub(players)
+	connection := &Conn{
+		playerID: playerID,
+		role:     playerConnection,
+		send:     make(chan []byte),
+	}
+	hub.connections[connection] = struct{}{}
+
+	hub.broadcastShutDown(CMD_SHUTDOWN)
+
+	if _, exists := hub.connections[connection]; exists {
+		t.Error("undeliverable connection remains registered")
+	}
+}
+
+func TestControlBroadcastEvictsQueuedMessagesForResetUpdates(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	activeID := players.New(TypePacman, "Active", StatusDisc)
+	offlineID := players.New(TypeGhost, "Offline", StatusDisc)
+	hub := NewHub(players)
+	active := &Conn{
+		playerID: activeID,
+		role:     playerConnection,
+		send:     make(chan []byte, 1),
+	}
+	viewer := &Conn{
+		role: viewerConnection,
+		send: make(chan []byte, 1),
+	}
+	hub.connections[active] = struct{}{}
+	hub.connections[viewer] = struct{}{}
+	hub.coordinates[activeID] = Coordinate{Latitude: 49.27, Longitude: -122.91}
+	hub.offlineCoordinates[offlineID] = Coordinate{Latitude: 49.28, Longitude: -122.90}
+	active.send <- []byte("stale state")
+	viewer.send <- []byte("stale move")
+
+	hub.clearOfflineLocations()
+	if _, exists := hub.connections[viewer]; !exists {
+		t.Fatal("viewer was unregistered after prioritized marker removal")
+	}
+	removed := receiveTestMessage(t, viewer)
+	if removed.Command != CMD_REMOVE || removed.Data != string(offlineID) {
+		t.Errorf("offline marker removal = %#v", removed)
+	}
+
+	if _, _, found := players.Update(activeID, TypeGhost); !found {
+		t.Fatal("reset active player update failed")
+	}
+	hub.broadcastInform(activeID, nil)
+	if _, exists := hub.connections[active]; !exists {
+		t.Fatal("active connection was unregistered after prioritized reset update")
+	}
+	updated := informPlayer(t, receiveTestMessage(t, active))
+	if updated.ID != activeID || updated.Type != TypeGhost {
+		t.Errorf("reset player update = %#v", updated)
+	}
+}
+
 func TestGameStateSnapshotAndBroadcastDoNotChangePlayerConnectionCounts(t *testing.T) {
 	players := new(Players)
 	players.Init()

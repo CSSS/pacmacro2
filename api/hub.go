@@ -26,9 +26,9 @@ type Hub struct {
 	shutdown     chan shutdownEvent
 }
 
-type shutdownEvent struct { 
-	command	string
-	done	chan struct{}
+type shutdownEvent struct {
+	command string
+	done    chan struct{}
 }
 
 func NewHub(players *Players, games ...*Game) *Hub {
@@ -72,7 +72,7 @@ func (h *Hub) Run() {
 			h.broadcastShutDown(event.command)
 			close(event.done)
 		}
-	}	
+	}
 }
 
 func isPrivateMapRole(playerType PlayerType) bool {
@@ -188,7 +188,7 @@ func (h *Hub) unregisterConnection(connection *Conn) {
 	if hasCoordinate && isMapVisibleRole(player.Type) {
 		message, ok := informMessage(player, coordinate)
 		if ok {
-			h.broadcast(message, nil, onlyViewers)
+			h.broadcastControl(message, nil, onlyViewers)
 		}
 	} else {
 		h.broadcastRemove(connection.playerID, onlyViewers, nil)
@@ -303,12 +303,40 @@ func (h *Hub) broadcast(message []byte, origin *Conn, include connectionFilter) 
 	}
 }
 
+func (h *Hub) broadcastControl(message []byte, origin *Conn, include connectionFilter) {
+	var failedConnections []*Conn
+	for connection := range h.connections {
+		if connection == origin || !include(connection) {
+			continue
+		}
+		if !h.enqueueControl(connection, message) {
+			failedConnections = append(failedConnections, connection)
+		}
+	}
+	for _, connection := range failedConnections {
+		h.unregisterConnection(connection)
+	}
+}
+
 func (h *Hub) enqueue(connection *Conn, message []byte) bool {
 	select {
 	case connection.send <- message:
 		return true
 	default:
 		return false
+	}
+}
+
+func (h *Hub) enqueueControl(connection *Conn, message []byte) bool {
+	if h.enqueue(connection, message) {
+		return true
+	}
+	for {
+		select {
+		case <-connection.send:
+		default:
+			return h.enqueue(connection, message)
+		}
 	}
 }
 
@@ -361,7 +389,7 @@ func (h *Hub) broadcastInform(playerID PlayerID, origin *Conn) {
 			if h.connectionCanSee(connection, playerID, player.Type) {
 				outgoing = message
 			}
-			if !h.enqueue(connection, outgoing) {
+			if !h.enqueueControl(connection, outgoing) {
 				slowConnections = append(slowConnections, connection)
 			}
 		}
@@ -377,7 +405,7 @@ func (h *Hub) broadcastInform(playerID PlayerID, origin *Conn) {
 	if retained && isMapVisibleRole(player.Type) {
 		message, ok := informMessage(player, coordinate)
 		if ok {
-			h.broadcast(message, nil, onlyViewers)
+			h.broadcastControl(message, nil, onlyViewers)
 		}
 		return
 	}
@@ -421,7 +449,7 @@ func removeMessage(playerID PlayerID) []byte {
 }
 
 func (h *Hub) broadcastRemove(playerID PlayerID, include connectionFilter, origin *Conn) {
-	h.broadcast(removeMessage(playerID), origin, include)
+	h.broadcastControl(removeMessage(playerID), origin, include)
 }
 
 func (h *Hub) clearOfflineLocations() {
@@ -437,6 +465,8 @@ func (h *Hub) broadcastShutDown(command string) {
 		return
 	}
 	for connection := range h.connections {
-		h.enqueue(connection, message)
+		if !h.enqueueControl(connection, message) {
+			h.unregisterConnection(connection)
+		}
 	}
 }

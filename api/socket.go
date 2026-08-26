@@ -36,11 +36,11 @@ type Sockets struct {
 	hub     *Hub
 }
 
-// BroadcastShutDown signals every client about server shutdown.
+// BroadcastShutDown sends a shutdown command to all connected clients.
 func (s *Sockets) BroadcastShutDown(command string) {
 	done := make(chan struct{})
 	s.hub.shutdown <- shutdownEvent{command: command, done: done}
-	<-done 
+	<-done
 }
 
 func (s *Sockets) Init(players *Players, games ...*Game) {

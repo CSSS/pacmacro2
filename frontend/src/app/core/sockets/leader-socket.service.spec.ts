@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { PAC_WINDOW } from '../browser-window.token';
 import { LeaderState, PlayerStatus, PlayerType } from '../game.models';
 import { LeaderSocketService } from './leader-socket.service';
+import { WebSocketService } from './websocket.service';
 
 class MockLeaderWebSocket {
   static readonly CONNECTING = 0;
@@ -66,6 +67,11 @@ const player = {
   type: PlayerType.Ghost,
   status: PlayerStatus.Connected,
 };
+
+function reconnectDelay(attempt: number): number {
+  const delays = WebSocketService.RECONNECT_DELAYS;
+  return delays[Math.min(attempt - 1, delays.length - 1)];
+}
 
 describe('LeaderSocketService', () => {
   let service: LeaderSocketService;
@@ -204,7 +210,7 @@ describe('LeaderSocketService', () => {
 
     first.serverClose(wasClean);
     expect(service.status()).toContain('Leader feed lost');
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(reconnectDelay(1));
     expect(MockLeaderWebSocket.instances).toHaveLength(2);
 
     MockLeaderWebSocket.instances[1].open();
@@ -257,7 +263,7 @@ describe('LeaderSocketService', () => {
     expect(service.players()).toEqual([]);
     expect(service.isFlagFound()).toBe(false);
     expect(service.status()).toContain('Waiting for the role to be restored');
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(reconnectDelay(1));
 
     const restoredSocket = MockLeaderWebSocket.instances[1];
     restoredSocket.open();
@@ -286,7 +292,7 @@ describe('LeaderSocketService', () => {
     socket.serverClose(true, 1008, 'Leader authentication required');
     expect(service.state()).toBe('revoked');
     expect(service.status()).toContain('Leader access was revoked');
-    vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(reconnectDelay(1));
 
     expect(MockLeaderWebSocket.instances).toHaveLength(2);
     MockLeaderWebSocket.instances[1].open();

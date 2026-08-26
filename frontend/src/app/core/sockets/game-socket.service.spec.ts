@@ -340,7 +340,27 @@ describe('GameSocketService', () => {
     expect(service.status()).toContain('Register as admin again in this browser');
   });
 
-  it('reconnects after two failures and expires the session after the third', () => {
+  it('expires the session after three consecutive failed player connections', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onSessionExpired = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired);
+
+    MockGameWebSocket.instances[0].serverClose(false);
+    advanceToNextReconnect();
+    MockGameWebSocket.instances[1].serverClose(false);
+    advanceToNextReconnect();
+    MockGameWebSocket.instances[2].serverClose(false);
+
+    expect(service.sessionExpired()).toBe(true);
+    expect(service.state()).toBe('error');
+    expect(service.status()).toContain('Session has expired as game server restarted.');
+    expect(MockGameWebSocket.instances).toHaveLength(3);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
+  });
+
+  it('reconnects without expiring the session after fewer than three failures', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -353,17 +373,9 @@ describe('GameSocketService', () => {
     advanceToNextReconnect();
 
     expect(service.sessionExpired()).toBe(false);
+    expect(onSessionExpired).not.toHaveBeenCalled();
     expect(service.state()).toBe('connecting');
     expect(MockGameWebSocket.instances).toHaveLength(3);
-    expect(onSessionExpired).not.toHaveBeenCalled();
-
-    MockGameWebSocket.instances[2].serverClose(false);
-
-    expect(service.sessionExpired()).toBe(true);
-    expect(service.state()).toBe('error');
-    expect(service.status()).toContain('Session has expired as game server restarted.');
-    expect(MockGameWebSocket.instances).toHaveLength(3);
-    expect(onSessionExpired).toHaveBeenCalledOnce();
   });
 
   it('resets the failure counter when a player connection succeeds', () => {
