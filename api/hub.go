@@ -323,6 +323,7 @@ func (h *Hub) enqueue(connection *Conn, message []byte) bool {
 	case connection.send <- message:
 		return true
 	default:
+		// Channel buffer is full. Client cannot keep up with real-time updates.
 		return false
 	}
 }
@@ -334,7 +335,9 @@ func (h *Hub) enqueueControl(connection *Conn, message []byte) bool {
 	for {
 		select {
 		case <-connection.send:
+			// Drain older queued messages until the buffer is empty to prioritize this critical control message.
 		default:
+			// Buffer is now completely drained. Enqueue the critical control message.
 			return h.enqueue(connection, message)
 		}
 	}

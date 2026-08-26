@@ -75,12 +75,3 @@ export class RegisterPageComponent {
     }
   }
 }
-
-function isServerStoppedNavigation(state: unknown): boolean {
-  return (
-    typeof state === 'object' &&
-    state !== null &&
-    'serverStopped' in state &&
-    state.serverStopped === true
-  );
-}
