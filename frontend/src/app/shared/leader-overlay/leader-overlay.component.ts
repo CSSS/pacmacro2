@@ -32,6 +32,7 @@ export class LeaderOverlayComponent {
   protected readonly isFlagFound = this.socket.isFlagFound;
   protected readonly status = signal('Loading leader controls…');
   protected readonly collapsed = signal(false);
+  protected readonly playerSearch = signal('');
   protected readonly refreshing = signal(false);
   protected readonly flagSaving = signal(false);
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
@@ -46,6 +47,12 @@ export class LeaderOverlayComponent {
   );
   protected readonly isFlagLeader = computed(() => this.leader()?.type === PlayerType.FlagLeader);
   protected readonly isReadOnlyLeader = computed(() => this.leader()?.type === PlayerType.Leader);
+  protected readonly filteredPlayers = computed(() => {
+    const search = this.playerSearch().trim().toLowerCase();
+    return search
+      ? this.players().filter((player) => player.name.toLowerCase().includes(search))
+      : this.players();
+  });
 
   constructor() {
     effect(() => {
@@ -79,6 +86,10 @@ export class LeaderOverlayComponent {
 
   protected isPlayerSaving(playerId: string): boolean {
     return this.savingPlayerIds().has(playerId);
+  }
+
+  protected searchPlayers(event: Event): void {
+    this.playerSearch.set((event.target as HTMLInputElement).value);
   }
 
   protected async refreshState(announce = true): Promise<void> {

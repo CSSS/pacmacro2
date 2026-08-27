@@ -52,7 +52,19 @@
       }
 
       <section class="player-list" aria-label="Players">
-        @for (player of players(); track player.id) {
+        <label class="player-search" for="leader-player-search">
+          Search players by name
+          <input
+            id="leader-player-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by name"
+            [value]="playerSearch()"
+            (input)="searchPlayers($event)"
+          />
+        </label>
+
+        @for (player of filteredPlayers(); track player.id) {
           <article class="player-card" [class.player-card--offline]="!isConnected(player)">
             <div class="player-card__identity">
               <strong>{{ player.name }}</strong>
@@ -92,7 +104,13 @@
             }
           </article>
         } @empty {
-          <p class="player-list__empty">Non-leader players will appear here when they register.</p>
+          <p class="player-list__empty">
+            {{
+              players().length
+                ? 'No players match that name.'
+                : 'Non-leader players will appear here when they register.'
+            }}
+          </p>
         }
       </section>
     </div>
