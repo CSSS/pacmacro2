@@ -6,6 +6,7 @@ import {
   inject,
   input,
   signal,
+  untracked,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
@@ -56,12 +57,15 @@ export class LeaderOverlayComponent {
 
   constructor() {
     effect(() => {
-      if (this.active()) {
-        void this.initialize();
-      } else {
-        this.socket.stop();
-        this.collapsed.set(false);
-      }
+      const active = this.active();
+      untracked(() => {
+        if (active) {
+          void this.initialize();
+        } else {
+          this.socket.stop();
+          this.collapsed.set(false);
+        }
+      });
     });
   }
 
@@ -162,7 +166,9 @@ export class LeaderOverlayComponent {
 
   private async initialize(): Promise<void> {
     await this.refreshState(false);
-    this.socket.start();
+    if (this.active()) {
+      this.socket.start();
+    }
   }
 
   private applyLocalTypeSelection(
