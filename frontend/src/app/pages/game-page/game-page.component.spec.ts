@@ -106,8 +106,14 @@ describe('GamePageComponent leader overlay', () => {
     },
   );
 
-  it('does not activate the leader overlay for a non-leader', async () => {
-    const page = await render(PlayerType.Ghost);
+  it.each([
+    PlayerType.Ghost,
+    PlayerType.Antipac,
+    PlayerType.Edible,
+    PlayerType.Pacman,
+    PlayerType.Hidden,
+  ])('does not activate the leader overlay for non-leader type %s', async (playerType) => {
+    const page = await render(playerType);
     expect(page.querySelector('.game-page__layout--with-panel')).toBeNull();
   });
 });
