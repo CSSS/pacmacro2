@@ -53,12 +53,12 @@
 
       <section class="player-list" aria-label="Players">
         <label class="player-search" for="leader-player-search">
-          Search players by name
+          Search players by ID
           <input
             id="leader-player-search"
             type="search"
             autocomplete="off"
-            placeholder="Search by name"
+            placeholder="Search by ID"
             [value]="playerSearch()"
             (input)="searchPlayers($event)"
           />
@@ -107,7 +107,7 @@
           <p class="player-list__empty">
             {{
               players().length
-                ? 'No players match that name.'
+                ? 'No players match that ID.'
                 : 'Non-leader players will appear here when they register.'
             }}
           </p>

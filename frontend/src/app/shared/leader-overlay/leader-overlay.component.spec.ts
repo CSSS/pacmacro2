@@ -111,23 +111,23 @@ describe('LeaderOverlayComponent', () => {
     expect(page.querySelector('#overlay-type-OFF-2')).toBeNull();
   });
 
-  it('filters players by a case-insensitive name search', async () => {
+  it('filters players by a case-insensitive ID search', async () => {
     const page = await render(true);
     const search = page.querySelector<HTMLInputElement>('#leader-player-search');
-    search!.value = 'gHoSt';
+    search!.value = 'eDiB';
     search!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     expect(page.querySelectorAll('.player-card')).toHaveLength(1);
-    expect(page.textContent).toContain('Ghost');
-    expect(page.textContent).not.toContain('Antipac');
+    expect(page.textContent).toContain('Edible');
+    expect(page.textContent).not.toContain('Ghost');
 
-    search.value = 'missing';
-    search.dispatchEvent(new Event('input'));
+    search!.value = 'missing';
+    search!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     expect(page.querySelectorAll('.player-card')).toHaveLength(0);
-    expect(page.textContent).toContain('No players match that name.');
+    expect(page.textContent).toContain('No players match that ID.');
   });
 
   it('optimistically enforces one Antipac', async () => {

@@ -50,7 +50,7 @@ export class LeaderOverlayComponent {
   protected readonly filteredPlayers = computed(() => {
     const search = this.playerSearch().trim().toLowerCase();
     return search
-      ? this.players().filter((player) => player.name.toLowerCase().includes(search))
+      ? this.players().filter((player) => player.id.toLowerCase().includes(search))
       : this.players();
   });
 
