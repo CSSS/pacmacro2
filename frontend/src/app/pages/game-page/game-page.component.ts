@@ -19,10 +19,11 @@ import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { LeaderOverlayComponent } from '../../shared/leader-overlay/leader-overlay.component';
 
 @Component({
   selector: 'pac-game-page',
-  imports: [BrandHeaderComponent, GameCanvasComponent],
+  imports: [BrandHeaderComponent, GameCanvasComponent, LeaderOverlayComponent],
   providers: [GameSocketService, GeolocationService, WakeLockService],
   templateUrl: './game-page.component.html',
   styleUrl: './game-page.component.scss',
@@ -45,7 +46,7 @@ export class GamePageComponent {
     const player = this.socket.players()[this.selfId()]?.player;
     return player ? `${player.name} (${player.id}) is ${typeLabel(player.type)}` : '';
   });
-  protected readonly showLeaderLink = computed(() => {
+  protected readonly isLeader = computed(() => {
     const player = this.socket.players()[this.selfId()]?.player;
     return player ? isLeaderType(player.type) : false;
   });

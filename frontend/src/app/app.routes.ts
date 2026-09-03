@@ -16,14 +16,6 @@ export const routes: Routes = [
       ),
   },
   {
-    path: 'leader',
-    title: 'Leader | PacMacro',
-    loadComponent: () =>
-      import('./pages/leader-page/leader-page.component').then(
-        (module) => module.LeaderPageComponent,
-      ),
-  },
-  {
     path: 'admin/map',
     title: 'Admin Map | PacMacro',
     loadComponent: () =>

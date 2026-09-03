@@ -60,9 +60,11 @@ See [`frontend/README.md`](frontend/README.md) for development and Nginx configu
 The admin control panel includes a read-only live map at `/admin/map`.
 Its WebSocket endpoint is `WS /api/admin/map/ws`; it uses the HttpOnly admin cookie and must be proxied with WebSocket upgrade headers in production.
 
-Players assigned a Leader role can open `/leader`.
-The page authenticates with the readable `id` cookie used by the game client.
-Generic Leaders have read-only access, AntiPac Leaders can choose a connected Ghost, Edible, or Antipac as the single Antipac, and Flag Leaders control shared flag-found state.
+Players assigned a Leader role see Leader controls alongside the live map on the
+main game page (`/`). The controls use the readable `id` cookie shared with the
+game client to identify the Leader. Generic Leaders have read-only access.
+AntiPac Leaders can select a connected Ghost, Edible, or Antipac as the single
+Antipac. Flag Leaders can control the shared flag-found state.
 
 ## Player types
 

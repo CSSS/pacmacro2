@@ -1,0 +1,266 @@
+:host {
+  display: block;
+}
+
+.button,
+.button-secondary,
+.flag-control {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid #555;
+  border-radius: 0.375rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.button {
+  background: #eee;
+  color: #111;
+
+  &:hover {
+    background: #fff;
+  }
+}
+
+.button-secondary {
+  background: #2a2a3e;
+  color: #eee;
+
+  &:hover {
+    background: #3a3a5e;
+  }
+}
+
+.leader-overlay {
+  margin-top: 1.5rem;
+  border: 1px solid #333;
+  border-radius: 0.5rem;
+  background: #12121e;
+  color: #eee;
+}
+
+.leader-overlay__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: #1e1e30;
+  }
+}
+
+.leader-overlay__heading {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.leader-overlay__chevron {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.leader-overlay__content {
+  padding: 0 1rem 1rem;
+}
+
+.leader-overlay__content--hidden {
+  display: none;
+}
+
+.eyebrow {
+  display: block;
+  color: #f30180;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.connection-status,
+.action-status {
+  min-height: 1.5rem;
+  font-weight: 600;
+}
+
+.connection-status {
+  margin-bottom: 0;
+  color: #aaa;
+  font-size: 0.875rem;
+}
+
+.leader-actions,
+.player-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.leader-actions {
+  margin-block: 1rem 1.5rem;
+}
+
+.flag-control {
+  background: #7d164e;
+  color: #fff;
+  border-color: #7d164e;
+
+  &:hover {
+    background: #9e1d63;
+  }
+
+  &[aria-pressed='true'] {
+    background: #166534;
+    border-color: #166534;
+  }
+}
+
+.capability-note {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid #333;
+  border-radius: 0.5rem;
+  background: #1e1e30;
+}
+
+.player-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.player-search {
+  display: grid;
+  gap: 0.35rem;
+  color: #eee;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.player-search input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #555;
+  border-radius: 0.375rem;
+  background: #2a2a3e;
+  color: #eee;
+  font: inherit;
+}
+
+.player-search input:focus-visible {
+  outline: 0.2rem solid #f30180;
+  outline-offset: 0.15rem;
+}
+
+.player-card {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 4fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid #2e2e44;
+  border-radius: 0.5rem;
+  background: #1a1a2e;
+}
+
+.player-card--offline .player-card__identity {
+  opacity: 0.5;
+}
+
+.player-card__identity {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.player-card__identity span,
+.player-card__role {
+  color: #aaa;
+  font-size: 0.8rem;
+}
+
+.player-card__status {
+  font-weight: 700;
+}
+
+.player-list__empty {
+  padding: 2rem;
+  border: 1px dashed #444;
+  border-radius: 0.5rem;
+  text-align: center;
+  color: #aaa;
+}
+
+.player-type {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.player-type + label {
+  display: inline-flex;
+  align-items: center;
+  background: #2a2a3e;
+  color: #eee;
+  border-color: #555;
+}
+
+.player-type:not(:disabled) + label:hover,
+.player-type:checked + label {
+  background: #eee;
+  color: #111;
+}
+
+.player-type:focus-visible + label {
+  outline: 0.2rem solid #f30180;
+  outline-offset: 0.15rem;
+}
+
+.player-type:disabled + label {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (min-width: 48.0625rem) {
+  .leader-overlay {
+    margin-top: 0;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .leader-overlay__toggle {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .leader-overlay__chevron {
+    display: none;
+  }
+
+  .leader-overlay__content--hidden {
+    display: block;
+  }
+
+  .player-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 36rem) {
+  .player-card {
+    grid-template-columns: 1fr;
+  }
+}

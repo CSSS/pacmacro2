@@ -1,0 +1,118 @@
+@if (active()) {
+  <section class="leader-overlay" [class.leader-overlay--collapsed]="collapsed()">
+    <button
+      type="button"
+      class="leader-overlay__toggle"
+      (click)="collapsed.update(v => !v)"
+      [attr.aria-expanded]="!collapsed()"
+      aria-controls="leader-overlay-content"
+    >
+      <span>
+        <span class="eyebrow">PacMacro leader panel</span>
+        <span class="leader-overlay__heading">{{ leaderHeading() }}</span>
+      </span>
+      <span class="leader-overlay__chevron" aria-hidden="true">
+        {{ collapsed() ? '▼' : '▲' }}
+      </span>
+    </button>
+
+    <div
+      id="leader-overlay-content"
+      class="leader-overlay__content"
+      [class.leader-overlay__content--hidden]="collapsed()"
+    >
+      <p class="connection-status" role="status">WebSocket: {{ socket.status() }}</p>
+      <p class="action-status" role="status" aria-live="polite">{{ status() }}</p>
+
+      <section class="leader-actions" aria-label="Leader actions">
+        <button
+          type="button"
+          class="button-secondary"
+          [disabled]="refreshing()"
+          (click)="refreshState()"
+        >
+          {{ refreshing() ? 'Refreshing…' : 'Refresh Players' }}
+        </button>
+        @if (isFlagLeader()) {
+          <button
+            type="button"
+            class="flag-control"
+            [class.button-secondary]="!isFlagFound()"
+            [attr.aria-pressed]="isFlagFound()"
+            [disabled]="flagSaving()"
+            (click)="toggleFlagFound()"
+          >
+            Flag Found
+          </button>
+        }
+      </section>
+
+      @if (isReadOnlyLeader()) {
+        <p class="capability-note">This Leader role is read-only.</p>
+      }
+
+      <section class="player-list" aria-label="Players">
+        <label class="player-search" for="leader-player-search">
+          Search players by ID
+          <input
+            id="leader-player-search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search by ID"
+            [value]="playerSearch()"
+            (input)="searchPlayers($event)"
+          />
+        </label>
+
+        @for (player of filteredPlayers(); track player.id) {
+          <article class="player-card" [class.player-card--offline]="!isConnected(player)">
+            <div class="player-card__identity">
+              <strong>{{ player.name }}</strong>
+              <span>{{ player.id }}</span>
+              <span class="player-card__status">
+                {{ isConnected(player) ? 'Connected' : 'Offline' }}
+              </span>
+            </div>
+
+            @if (isAntiPacLeader() && isEligible(player)) {
+              <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
+                <input
+                  [id]="'overlay-type-' + player.id + '-3'"
+                  class="player-type"
+                  type="radio"
+                  [name]="'overlay-type-' + player.id"
+                  [value]="PlayerType.Ghost"
+                  [disabled]="isPlayerSaving(player.id)"
+                  [checked]="isTypeSelected(player, PlayerType.Ghost)"
+                  (change)="updateType(player, PlayerType.Ghost, $event)"
+                />
+                <label class="button" [for]="'overlay-type-' + player.id + '-3'">Ghost</label>
+                <input
+                  [id]="'overlay-type-' + player.id + '-2'"
+                  class="player-type"
+                  type="radio"
+                  [name]="'overlay-type-' + player.id"
+                  [value]="PlayerType.Antipac"
+                  [disabled]="isPlayerSaving(player.id)"
+                  [checked]="isTypeSelected(player, PlayerType.Antipac)"
+                  (change)="updateType(player, PlayerType.Antipac, $event)"
+                />
+                <label class="button" [for]="'overlay-type-' + player.id + '-2'">Antipac</label>
+              </div>
+            } @else {
+              <p class="player-card__role">{{ isEligible(player) ? 'Read-only' : 'Not eligible' }}</p>
+            }
+          </article>
+        } @empty {
+          <p class="player-list__empty">
+            {{
+              players().length
+                ? 'No players match that ID.'
+                : 'Non-leader players will appear here when they register.'
+            }}
+          </p>
+        }
+      </section>
+    </div>
+  </section>
+}
