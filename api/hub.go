@@ -188,7 +188,7 @@ func (h *Hub) unregisterConnection(connection *Conn) {
 	if hasCoordinate && isMapVisibleRole(player.Type) {
 		message, ok := informMessage(player, coordinate)
 		if ok {
-			h.broadcastControl(message, nil, onlyViewers)
+			h.broadcast(message, nil, onlyViewers)
 		}
 	} else {
 		h.broadcastRemove(connection.playerID, onlyViewers, nil)
@@ -303,21 +303,6 @@ func (h *Hub) broadcast(message []byte, origin *Conn, include connectionFilter) 
 	}
 }
 
-func (h *Hub) broadcastControl(message []byte, origin *Conn, include connectionFilter) {
-	var failedConnections []*Conn
-	for connection := range h.connections {
-		if connection == origin || !include(connection) {
-			continue
-		}
-		if !h.enqueueControl(connection, message) {
-			failedConnections = append(failedConnections, connection)
-		}
-	}
-	for _, connection := range failedConnections {
-		h.unregisterConnection(connection)
-	}
-}
-
 func (h *Hub) enqueue(connection *Conn, message []byte) bool {
 	select {
 	case connection.send <- message:
@@ -328,16 +313,20 @@ func (h *Hub) enqueue(connection *Conn, message []byte) bool {
 	}
 }
 
-func (h *Hub) enqueueControl(connection *Conn, message []byte) bool {
+// enqueueShutdown discards queued gameplay updates only when necessary to
+// deliver the terminal shutdown command. Ordinary messages must use enqueue so
+// a slow client reconnects and receives a fresh snapshot instead of continuing
+// with a silently truncated event stream.
+func (h *Hub) enqueueShutdown(connection *Conn, message []byte) bool {
 	if h.enqueue(connection, message) {
 		return true
 	}
 	for {
 		select {
 		case <-connection.send:
-			// Drain older queued messages until the buffer is empty to prioritize this critical control message.
+			// Gameplay state is no longer relevant once this session is ending.
 		default:
-			// Buffer is now completely drained. Enqueue the critical control message.
+			// The buffer is empty, so the shutdown command can be prioritized.
 			return h.enqueue(connection, message)
 		}
 	}
@@ -392,7 +381,7 @@ func (h *Hub) broadcastInform(playerID PlayerID, origin *Conn) {
 			if h.connectionCanSee(connection, playerID, player.Type) {
 				outgoing = message
 			}
-			if !h.enqueueControl(connection, outgoing) {
+			if !h.enqueue(connection, outgoing) {
 				slowConnections = append(slowConnections, connection)
 			}
 		}
@@ -408,7 +397,7 @@ func (h *Hub) broadcastInform(playerID PlayerID, origin *Conn) {
 	if retained && isMapVisibleRole(player.Type) {
 		message, ok := informMessage(player, coordinate)
 		if ok {
-			h.broadcastControl(message, nil, onlyViewers)
+			h.broadcast(message, nil, onlyViewers)
 		}
 		return
 	}
@@ -452,7 +441,7 @@ func removeMessage(playerID PlayerID) []byte {
 }
 
 func (h *Hub) broadcastRemove(playerID PlayerID, include connectionFilter, origin *Conn) {
-	h.broadcastControl(removeMessage(playerID), origin, include)
+	h.broadcast(removeMessage(playerID), origin, include)
 }
 
 func (h *Hub) clearOfflineLocations() {
@@ -468,7 +457,7 @@ func (h *Hub) broadcastShutDown(command string) {
 		return
 	}
 	for connection := range h.connections {
-		if !h.enqueueControl(connection, message) {
+		if !h.enqueueShutdown(connection, message) {
 			h.unregisterConnection(connection)
 		}
 	}

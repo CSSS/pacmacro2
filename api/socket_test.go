@@ -93,47 +93,81 @@ func TestBroadcastShutdownUnregistersUndeliverableConnection(t *testing.T) {
 	}
 }
 
-func TestControlBroadcastEvictsQueuedMessagesForResetUpdates(t *testing.T) {
+func TestRemoveBroadcastPreservesQueuedMessages(t *testing.T) {
 	players := new(Players)
 	players.Init()
-	activeID := players.New(TypePacman, "Active", StatusDisc)
-	offlineID := players.New(TypeGhost, "Offline", StatusDisc)
 	hub := NewHub(players)
-	active := &Conn{
-		playerID: activeID,
-		role:     playerConnection,
-		send:     make(chan []byte, 1),
+	viewer := &Conn{
+		role: viewerConnection,
+		send: make(chan []byte, 2),
 	}
+	hub.connections[viewer] = struct{}{}
+	queued := []byte("queued state")
+	viewer.send <- queued
+
+	playerID := PlayerID("offline")
+	hub.broadcastRemove(playerID, onlyViewers, nil)
+
+	if got := receiveTestData(t, viewer); string(got) != string(queued) {
+		t.Fatalf("first queued message = %q, want %q", got, queued)
+	}
+	removed := receiveTestMessage(t, viewer)
+	if removed.Command != CMD_REMOVE || removed.Data != string(playerID) {
+		t.Errorf("offline marker removal = %#v", removed)
+	}
+}
+
+func TestRemoveBroadcastDoesNotEvictFullQueue(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	hub := NewHub(players)
 	viewer := &Conn{
 		role: viewerConnection,
 		send: make(chan []byte, 1),
 	}
-	hub.connections[active] = struct{}{}
 	hub.connections[viewer] = struct{}{}
-	hub.coordinates[activeID] = Coordinate{Latitude: 49.27, Longitude: -122.91}
-	hub.offlineCoordinates[offlineID] = Coordinate{Latitude: 49.28, Longitude: -122.90}
-	active.send <- []byte("stale state")
-	viewer.send <- []byte("stale move")
+	queued := []byte("queued state")
+	viewer.send <- queued
 
-	hub.clearOfflineLocations()
-	if _, exists := hub.connections[viewer]; !exists {
-		t.Fatal("viewer was unregistered after prioritized marker removal")
-	}
-	removed := receiveTestMessage(t, viewer)
-	if removed.Command != CMD_REMOVE || removed.Data != string(offlineID) {
-		t.Errorf("offline marker removal = %#v", removed)
-	}
+	hub.broadcastRemove(PlayerID("offline"), onlyViewers, nil)
 
-	if _, _, found := players.Update(activeID, TypeGhost); !found {
-		t.Fatal("reset active player update failed")
+	if _, exists := hub.connections[viewer]; exists {
+		t.Fatal("slow viewer remains registered")
 	}
-	hub.broadcastInform(activeID, nil)
-	if _, exists := hub.connections[active]; !exists {
-		t.Fatal("active connection was unregistered after prioritized reset update")
+	if len(viewer.send) != 1 {
+		t.Fatalf("queued messages = %d, want 1", len(viewer.send))
 	}
-	updated := informPlayer(t, receiveTestMessage(t, active))
-	if updated.ID != activeID || updated.Type != TypeGhost {
-		t.Errorf("reset player update = %#v", updated)
+	if got := receiveTestData(t, viewer); string(got) != string(queued) {
+		t.Fatalf("queued message = %q, want %q", got, queued)
+	}
+}
+
+func TestInformBroadcastDoesNotEvictFullQueue(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	playerID := players.New(TypePacman, "Active", StatusConn)
+	hub := NewHub(players)
+	owner := newTestConnection(playerID)
+	viewer := &Conn{
+		role: viewerConnection,
+		send: make(chan []byte, 1),
+	}
+	hub.connections[owner] = struct{}{}
+	hub.connections[viewer] = struct{}{}
+	hub.coordinates[playerID] = Coordinate{Latitude: 49.27, Longitude: -122.91}
+	queued := []byte("queued move")
+	viewer.send <- queued
+
+	hub.broadcastInform(playerID, owner)
+
+	if _, exists := hub.connections[viewer]; exists {
+		t.Fatal("slow viewer remains registered")
+	}
+	if len(viewer.send) != 1 {
+		t.Fatalf("queued messages = %d, want 1", len(viewer.send))
+	}
+	if got := receiveTestData(t, viewer); string(got) != string(queued) {
+		t.Fatalf("queued message = %q, want %q", got, queued)
 	}
 }
 
