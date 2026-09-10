@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	ws "github.com/gorilla/websocket"
 )
@@ -43,6 +44,13 @@ func (a *Admin) ServeSocket(w http.ResponseWriter, r *http.Request) {
 	connection, err := Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
+	}
+	if a.lifecycle != nil {
+		if !a.lifecycle.Track(connection) {
+			_ = connection.Close()
+			return
+		}
+		defer a.lifecycle.Untrack(connection)
 	}
 	if !a.addConnection(connection) {
 		return
@@ -127,6 +135,7 @@ func (a *Admin) broadcastSocketMessage(message AdminSocketMessage) {
 	a.socketMutex.Lock()
 	defer a.socketMutex.Unlock()
 	for connection := range a.connections {
+		setAdminWriteDeadline(connection)
 		if err := connection.WriteMessage(ws.TextMessage, JSON); err != nil {
 			delete(a.connections, connection)
 			_ = connection.Close()
@@ -139,5 +148,17 @@ func writeAdminSocketMessage(connection adminSocketConnection, message AdminSock
 	if err != nil {
 		return false
 	}
+	setAdminWriteDeadline(connection)
 	return connection.WriteMessage(ws.TextMessage, JSON) == nil
+}
+
+// setAdminWriteDeadline applies the normal write timeout without holding the
+// registry mutex during I/O. Connections without a deadline API keep the
+// previous behavior for test doubles.
+func setAdminWriteDeadline(connection adminSocketConnection) {
+	if deadlineWriter, ok := connection.(interface {
+		SetWriteDeadline(time.Time) error
+	}); ok {
+		_ = deadlineWriter.SetWriteDeadline(time.Now().Add(socketWriteTimeout))
+	}
 }

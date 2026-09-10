@@ -21,6 +21,9 @@ const (
 	CMD_INFORM = "inform" // inform another player change/connection
 	CMD_REMOVE = "remove" // remove a player marker without disclosing a location
 	CMD_STATE  = "state"  // inform clients of shared game state
+	// CMD_SHUTDOWN is the legacy JSON shutdown command. New servers notify
+	// shutdown with a 1001 Going Away close frame; clients still accept this
+	// command for compatibility.
 	CMD_SHUTDOWN = "shutdown" // inform clients of server shutdown
 
 	// player type

@@ -28,8 +28,8 @@ func newAdminTestState(t *testing.T, password string) (*Players, *Admin) {
 	sockets := new(Sockets)
 	admin := new(Admin)
 	players.Init()
-	sockets.Init(players)
-	admin.Init(players, sockets, password)
+	sockets.Init(players, nil)
+	admin.Init(players, sockets, password, nil)
 	return players, admin
 }
 
@@ -145,9 +145,9 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 	players.Init()
 	game := new(Game)
 	sockets := new(Sockets)
-	sockets.Init(players, game)
+	sockets.Init(players, nil, game)
 	admin := new(Admin)
-	admin.Init(players, sockets, "top-secret", game)
+	admin.Init(players, sockets, "top-secret", nil, game)
 	cookie := registerTestAdmin(t, admin, "top-secret")
 	for _, playerType := range []PlayerType{TypeLeader, TypeAntiPacLeader, TypeFlagLeader} {
 		players.New(playerType, TypeString(playerType), StatusDisc)
@@ -179,9 +179,9 @@ func TestAdminResetPreservesConnectedSessionsAndLeaderAuthorization(t *testing.T
 	players.Init()
 	game := new(Game)
 	sockets := new(Sockets)
-	sockets.Init(players, game)
+	sockets.Init(players, nil, game)
 	admin := new(Admin)
-	admin.Init(players, sockets, "top-secret", game)
+	admin.Init(players, sockets, "top-secret", nil, game)
 	cookie := registerTestAdmin(t, admin, "top-secret")
 
 	leaderID := players.New(TypeAntiPacLeader, "Leader", StatusDisc)
@@ -235,9 +235,9 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	players.Init()
 	game := new(Game)
 	sockets := new(Sockets)
-	sockets.Init(players, game)
+	sockets.Init(players, nil, game)
 	admin := new(Admin)
-	admin.Init(players, sockets, "top-secret", game)
+	admin.Init(players, sockets, "top-secret", nil, game)
 	cookie := registerTestAdmin(t, admin, "top-secret")
 	connection := new(recordingAdminConnection)
 	if !admin.addConnection(connection) {
@@ -298,9 +298,9 @@ func TestAdminResetClearsOfflineLocationsButPreservesActiveCoordinates(t *testin
 	players.Init()
 	game := new(Game)
 	sockets := new(Sockets)
-	sockets.Init(players, game)
+	sockets.Init(players, nil, game)
 	admin := new(Admin)
-	admin.Init(players, sockets, "top-secret", game)
+	admin.Init(players, sockets, "top-secret", nil, game)
 	cookie := registerTestAdmin(t, admin, "top-secret")
 
 	activeID := players.New(TypeLeader, "Active", StatusDisc)

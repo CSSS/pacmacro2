@@ -31,68 +31,6 @@ func TestPlayerStaysConnectedUntilLastSocketDisconnects(t *testing.T) {
 	}
 }
 
-func TestBroadcastShutdownQueuesShutdownCommand(t *testing.T) {
-	players := new(Players)
-	players.Init()
-	playerID := players.New(TypeGhost, "Player", StatusDisc)
-	hub := NewHub(players)
-	connection := newTestConnection(playerID)
-	hub.registerConnection(connection)
-	drainTestMessages(connection)
-
-	hub.broadcastShutDown(CMD_SHUTDOWN)
-	message := receiveTestMessage(t, connection)
-	if message.Command != CMD_SHUTDOWN {
-		t.Errorf("shutdown command = %q, want %q", message.Command, CMD_SHUTDOWN)
-	}
-}
-
-func TestBroadcastShutdownEvictsQueuedMessages(t *testing.T) {
-	players := new(Players)
-	players.Init()
-	playerID := players.New(TypeGhost, "Player", StatusDisc)
-	hub := NewHub(players)
-	connection := &Conn{
-		playerID: playerID,
-		role:     playerConnection,
-		send:     make(chan []byte, 2),
-	}
-	hub.connections[connection] = struct{}{}
-	connection.send <- []byte("stale move")
-	connection.send <- []byte("stale state")
-
-	hub.broadcastShutDown(CMD_SHUTDOWN)
-
-	if _, exists := hub.connections[connection]; !exists {
-		t.Fatal("connection was unregistered after successful prioritized delivery")
-	}
-	if len(connection.send) != 1 {
-		t.Fatalf("queued messages = %d, want 1", len(connection.send))
-	}
-	if message := receiveTestMessage(t, connection); message.Command != CMD_SHUTDOWN {
-		t.Errorf("shutdown command = %q, want %q", message.Command, CMD_SHUTDOWN)
-	}
-}
-
-func TestBroadcastShutdownUnregistersUndeliverableConnection(t *testing.T) {
-	players := new(Players)
-	players.Init()
-	playerID := players.New(TypeGhost, "Player", StatusDisc)
-	hub := NewHub(players)
-	connection := &Conn{
-		playerID: playerID,
-		role:     playerConnection,
-		send:     make(chan []byte),
-	}
-	hub.connections[connection] = struct{}{}
-
-	hub.broadcastShutDown(CMD_SHUTDOWN)
-
-	if _, exists := hub.connections[connection]; exists {
-		t.Error("undeliverable connection remains registered")
-	}
-}
-
 func TestRemoveBroadcastPreservesQueuedMessages(t *testing.T) {
 	players := new(Players)
 	players.Init()

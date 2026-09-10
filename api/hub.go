@@ -23,12 +23,6 @@ type Hub struct {
 	inform       chan PlayerID
 	state        chan GameState
 	clearOffline chan chan struct{}
-	shutdown     chan shutdownEvent
-}
-
-type shutdownEvent struct {
-	command string
-	done    chan struct{}
 }
 
 func NewHub(players *Players, games ...*Game) *Hub {
@@ -44,7 +38,6 @@ func NewHub(players *Players, games ...*Game) *Hub {
 		inform:             make(chan PlayerID),
 		state:              make(chan GameState),
 		clearOffline:       make(chan chan struct{}),
-		shutdown:           make(chan shutdownEvent),
 	}
 	if len(games) > 0 {
 		hub.game = games[0]
@@ -68,9 +61,6 @@ func (h *Hub) Run() {
 		case done := <-h.clearOffline:
 			h.clearOfflineLocations()
 			close(done)
-		case event := <-h.shutdown:
-			h.broadcastShutDown(event.command)
-			close(event.done)
 		}
 	}
 }
@@ -313,25 +303,6 @@ func (h *Hub) enqueue(connection *Conn, message []byte) bool {
 	}
 }
 
-// enqueueShutdown discards queued gameplay updates only when necessary to
-// deliver the terminal shutdown command. Ordinary messages must use enqueue so
-// a slow client reconnects and receives a fresh snapshot instead of continuing
-// with a silently truncated event stream.
-func (h *Hub) enqueueShutdown(connection *Conn, message []byte) bool {
-	if h.enqueue(connection, message) {
-		return true
-	}
-	for {
-		select {
-		case <-connection.send:
-			// Gameplay state is no longer relevant once this session is ending.
-		default:
-			// The buffer is empty, so the shutdown command can be prioritized.
-			return h.enqueue(connection, message)
-		}
-	}
-}
-
 func informMessage(player PlayerResponse, coordinate Coordinate) ([]byte, bool) {
 	playerJSON, err := json.Marshal(player)
 	if err != nil {
@@ -451,14 +422,4 @@ func (h *Hub) clearOfflineLocations() {
 	}
 }
 
-func (h *Hub) broadcastShutDown(command string) {
-	message, err := json.Marshal(Message{Command: command})
-	if err != nil {
-		return
-	}
-	for connection := range h.connections {
-		if !h.enqueueShutdown(connection, message) {
-			h.unregisterConnection(connection)
-		}
-	}
-}
+

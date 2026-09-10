@@ -46,9 +46,9 @@ func newLeaderTestState() (*Players, *Game, *Sockets, *Leader) {
 	players.Init()
 	game := new(Game)
 	sockets := new(Sockets)
-	sockets.Init(players, game)
+	sockets.Init(players, nil, game)
 	leader := new(Leader)
-	leader.Init(players, game, sockets)
+	leader.Init(players, game, sockets, nil)
 	return players, game, sockets, leader
 }
 

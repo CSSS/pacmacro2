@@ -32,19 +32,14 @@ const (
 
 type Sockets struct {
 	// private
-	players *Players
-	hub     *Hub
+	players   *Players
+	hub       *Hub
+	lifecycle *Lifecycle
 }
 
-// BroadcastShutDown sends a shutdown command to all connected clients.
-func (s *Sockets) BroadcastShutDown(command string) {
-	done := make(chan struct{})
-	s.hub.shutdown <- shutdownEvent{command: command, done: done}
-	<-done
-}
-
-func (s *Sockets) Init(players *Players, games ...*Game) {
+func (s *Sockets) Init(players *Players, lifecycle *Lifecycle, games ...*Game) {
 	s.players = players
+	s.lifecycle = lifecycle
 	s.hub = NewHub(players, games...)
 
 	go s.hub.Run()
@@ -134,6 +129,24 @@ func (c *Conn) readPump(hub *Hub) error {
 	}
 }
 
+// trackGameSocket registers the read handler and write pump with the shared
+// lifecycle. The caller must already hold one Track for the read handler when
+// calling this; it acquires the second Track for the write pump.
+func (s *Sockets) trackGameSocket(socket *ws.Conn, connection *Conn) bool {
+	if s.lifecycle == nil {
+		go connection.writePump(s.hub)
+		return true
+	}
+	if !s.lifecycle.Track(socket) {
+		return false
+	}
+	go func() {
+		defer s.lifecycle.Untrack(socket)
+		connection.writePump(s.hub)
+	}()
+	return true
+}
+
 // WS /api/ws/<ID>
 // ServeHTTP upgrades the connection to a websocket connection
 func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +166,13 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	if s.lifecycle != nil {
+		if !s.lifecycle.Track(socket) {
+			_ = socket.Close()
+			return
+		}
+		defer s.lifecycle.Untrack(socket)
+	}
 
 	connection := &Conn{
 		socket:   socket,
@@ -161,7 +181,10 @@ func (s *Sockets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		send:     make(chan []byte, socketSendQueueSize),
 	}
 
-	go connection.writePump(s.hub)
+	if !s.trackGameSocket(socket, connection) {
+		_ = socket.Close()
+		return
+	}
 	s.hub.register <- connection
 
 	fmt.Printf("Sockets\tServeHTTP (/api/ws/):\tID %q: Connection opened.\n", playerID)
@@ -180,6 +203,13 @@ func (s *Sockets) ServeViewer(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	if s.lifecycle != nil {
+		if !s.lifecycle.Track(socket) {
+			_ = socket.Close()
+			return
+		}
+		defer s.lifecycle.Untrack(socket)
+	}
 
 	connection := &Conn{
 		socket: socket,
@@ -187,7 +217,10 @@ func (s *Sockets) ServeViewer(w http.ResponseWriter, r *http.Request) {
 		send:   make(chan []byte, socketSendQueueSize),
 	}
 
-	go connection.writePump(s.hub)
+	if !s.trackGameSocket(socket, connection) {
+		_ = socket.Close()
+		return
+	}
 	s.hub.register <- connection
 
 	fmt.Print("Sockets\tServeViewer (/api/admin/map/ws):\tConnection opened.\n")

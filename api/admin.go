@@ -30,6 +30,7 @@ type Admin struct {
 	players     *Players
 	sockets     *Sockets
 	game        *Game
+	lifecycle   *Lifecycle
 	connections map[adminSocketConnection]struct{}
 
 	password    string
@@ -39,9 +40,10 @@ type Admin struct {
 	socketMutex sync.Mutex
 }
 
-func (a *Admin) Init(players *Players, sockets *Sockets, password string, games ...*Game) {
+func (a *Admin) Init(players *Players, sockets *Sockets, password string, lifecycle *Lifecycle, games ...*Game) {
 	a.players = players
 	a.sockets = sockets
+	a.lifecycle = lifecycle
 	a.password = password
 	a.cookieValue = base64.RawURLEncoding.EncodeToString([]byte(password))
 	a.registered = false

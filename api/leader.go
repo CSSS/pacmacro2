@@ -51,18 +51,20 @@ type leaderSocketConnection interface {
 }
 
 type Leader struct {
-	players *Players
-	game    *Game
-	sockets *Sockets
+	players   *Players
+	game      *Game
+	sockets   *Sockets
+	lifecycle *Lifecycle
 
 	connections map[leaderSocketConnection]PlayerID
 	socketMutex sync.Mutex
 }
 
-func (l *Leader) Init(players *Players, game *Game, sockets *Sockets) {
+func (l *Leader) Init(players *Players, game *Game, sockets *Sockets, lifecycle *Lifecycle) {
 	l.players = players
 	l.game = game
 	l.sockets = sockets
+	l.lifecycle = lifecycle
 	l.connections = make(map[leaderSocketConnection]PlayerID)
 	players.AddObserver(l.BroadcastPlayer)
 	players.AddRemovalObserver(l.BroadcastRemoval)
@@ -229,6 +231,13 @@ func (l *Leader) ServeSocket(w http.ResponseWriter, r *http.Request) {
 	connection, err := Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
+	}
+	if l.lifecycle != nil {
+		if !l.lifecycle.Track(connection) {
+			_ = connection.Close()
+			return
+		}
+		defer l.lifecycle.Untrack(connection)
 	}
 	if !l.addConnection(connection, state.Leader.ID) {
 		return
