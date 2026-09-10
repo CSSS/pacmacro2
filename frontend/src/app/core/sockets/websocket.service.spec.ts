@@ -301,6 +301,38 @@ describe('WebSocketService', () => {
     expect(service.transportState()).toBe('idle');
   });
 
+  it('enters shutdown without reconnecting on a 1001 close', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.connect();
+    const socket = MockRxWebSocket.instances[0];
+    socket.open();
+
+    socket.serverClose(true, WebSocketService.SHUTDOWN_CODE, 'Server shutting down');
+    expect(service.transportState()).toBe('shutdown');
+    expect(service.status()).toBe('The server has stopped this connection.');
+    vi.runAllTimers();
+
+    expect(MockRxWebSocket.instances).toHaveLength(1);
+  });
+
+  it('ignores a late close after a 1001 shutdown', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    MockRxWebSocket.closeSynchronously = false;
+    service.connect();
+    const socket = MockRxWebSocket.instances[0];
+    socket.open();
+    const lateClose = socket.onclose;
+
+    socket.serverClose(true, WebSocketService.SHUTDOWN_CODE, 'Server shutting down');
+    expect(service.transportState()).toBe('shutdown');
+    lateClose?.(new CloseEvent('close', { code: 1006, wasClean: false }));
+
+    expect(service.transportState()).toBe('shutdown');
+    expect(MockRxWebSocket.instances).toHaveLength(1);
+  });
+
   it('closes the active socket when its injection context is destroyed', () => {
     service.connect();
     const socket = MockRxWebSocket.instances[0];

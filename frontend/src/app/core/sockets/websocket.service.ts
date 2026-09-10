@@ -20,6 +20,7 @@ export abstract class WebSocketService<T> {
   static readonly WEBSOCKET_OPEN = 1;
   static readonly WEBSOCKET_CLOSING = 2;
   static readonly POLICY_VIOLATION_CODE = 1008;
+  static readonly SHUTDOWN_CODE = 1001;
 
   readonly status = computed(() => this.getStatus(this.state()));
 
@@ -47,6 +48,8 @@ export abstract class WebSocketService<T> {
   protected onSocketOpen(): void {}
 
   protected onSocketClose(_closeEvent: CloseEvent): void {}
+
+  protected onShutdown(): void {}
 
   protected onSocketError(_error: unknown): void {}
 
@@ -136,6 +139,10 @@ export abstract class WebSocketService<T> {
       closeObserver: {
         next: (closeEvent) => {
           if (!this.isCurrentConnection(connectionId, socketSubject$)) {
+            return;
+          }
+          if (closeEvent.code === WebSocketService.SHUTDOWN_CODE) {
+            this.handleServerShutdown(connectionId, socketSubject$, closeEvent);
             return;
           }
           this.socketOpen = false;
@@ -345,6 +352,23 @@ export abstract class WebSocketService<T> {
       return 'offline';
     }
     return this.requestedReconnectState ?? this.getReconnectState();
+  }
+
+  private handleServerShutdown(
+    connectionId: number,
+    socketSubject$: WebSocketSubject<T | null>,
+    closeEvent: CloseEvent,
+  ): void {
+    if (!this.isCurrentConnection(connectionId, socketSubject$)) {
+      return;
+    }
+    this.socketOpen = false;
+    console.log('WebSocket closed: ', closeEvent);
+    this.onSocketClose(closeEvent);
+    this.reconnectAllowed = false;
+    this.requestedReconnectState = undefined;
+    this.onShutdown();
+    this.state.set('shutdown');
   }
 
   private isCurrentConnection(

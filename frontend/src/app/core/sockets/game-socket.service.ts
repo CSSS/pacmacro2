@@ -100,17 +100,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   }
 
   private endForServerShutdown(): void {
-    const mode = this.mode;
-    const onServerShutdown = this.onServerShutdown;
-
-    this.mode = null;
-    this.playerId = null;
-    this.onConnected = null;
-    this.onSessionExpired = null;
-    this.onServerShutdown = null;
-    this.reconnecting = false;
-    this.consecutiveFailures = 0;
-    this.sessionExpired.set(false);
+    const { mode, onServerShutdown } = this.clearShutdownSession();
 
     // Incrementing the connection identity before unsubscribing makes any
     // queued retry or late close event belong to an obsolete connection.
@@ -122,6 +112,36 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
         : 'The server stopped the admin map connection.',
     );
 
+    if (mode === 'player') {
+      onServerShutdown?.();
+    }
+  }
+
+  private clearShutdownSession(): {
+    mode: SocketMode | null;
+    onServerShutdown: (() => void) | null;
+  } {
+    const mode = this.mode;
+    const onServerShutdown = this.onServerShutdown;
+
+    this.mode = null;
+    this.playerId = null;
+    this.onConnected = null;
+    this.onSessionExpired = null;
+    this.onServerShutdown = null;
+    this.reconnecting = false;
+    this.consecutiveFailures = 0;
+    this.sessionExpired.set(false);
+    return { mode, onServerShutdown };
+  }
+
+  protected override onShutdown(): void {
+    const { mode, onServerShutdown } = this.clearShutdownSession();
+    this.statusMessage.set(
+      mode === 'player'
+        ? 'The server stopped. Register to join the next game.'
+        : 'The server stopped the admin map connection.',
+    );
     if (mode === 'player') {
       onServerShutdown?.();
     }

@@ -118,6 +118,21 @@ describe('sockets/AdminSocketService', () => {
     expect(MockAdminWebSocket.instances).toHaveLength(1);
   });
 
+  it('enters shutdown without reconnecting on a 1001 close', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    socket.message({ event: 'snapshot', isFlagFound: false, players: [] });
+    expect(service.isReady()).toBe(true);
+
+    socket.serverClose(true, 1001, 'Server shutting down');
+    vi.runAllTimers();
+
+    expect(service.state()).toBe('shutdown');
+    expect(service.isReady()).toBe(false);
+    expect(service.status()).toBe('The server has stopped this connection.');
+    expect(MockAdminWebSocket.instances).toHaveLength(1);
+  });
+
   it('applies and sorts a complete snapshot including flag state', () => {
     socket.message({
       event: 'snapshot',

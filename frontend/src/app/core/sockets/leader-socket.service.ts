@@ -84,6 +84,10 @@ export class LeaderSocketService extends WebSocketService<LeaderSocketMessage> {
     }
   }
 
+  protected override onShutdown(): void {
+    this.reconnecting = false;
+  }
+
   protected override onSocketError(): void {
     this.statusMessage.set(
       'Could not authenticate the leader feed. Open the game with a current Leader identity, then retry.',

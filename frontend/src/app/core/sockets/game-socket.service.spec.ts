@@ -245,6 +245,42 @@ describe('GameSocketService', () => {
     expect(MockGameWebSocket.instances).toHaveLength(1);
   });
 
+  it('ends a player session on a 1001 close without counting a failure', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const onSessionExpired = vi.fn();
+    const onServerShutdown = vi.fn();
+    service.start('ABCD', () => undefined, onSessionExpired, onServerShutdown);
+    const first = MockGameWebSocket.instances[0];
+    first.open();
+
+    first.serverClose(true, 1001, 'Server shutting down');
+    vi.runAllTimers();
+
+    expect(service.state()).toBe('shutdown');
+    expect(service.status()).toBe('The server stopped. Register to join the next game.');
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+    expect(onServerShutdown).toHaveBeenCalledOnce();
+    expect(onSessionExpired).not.toHaveBeenCalled();
+    expect(service.sessionExpired()).toBe(false);
+    expect(service.sendCoordinate({ latitude: 49.2, longitude: -123 })).toBe(false);
+  });
+
+  it('ends a viewer session on a 1001 close', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    service.startViewer();
+    const first = MockGameWebSocket.instances[0];
+    first.open();
+
+    first.serverClose(true, 1001, 'Server shutting down');
+    vi.runAllTimers();
+
+    expect(service.state()).toBe('shutdown');
+    expect(service.status()).toBe('The server stopped the admin map connection.');
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+  });
+
   it.each([
     ['clean', true],
     ['abnormal', false],

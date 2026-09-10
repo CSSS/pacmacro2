@@ -298,4 +298,21 @@ describe('LeaderSocketService', () => {
     MockLeaderWebSocket.instances[1].open();
     expect(service.state()).toBe('revoked');
   });
+
+  it('enters shutdown without reconnecting on a 1001 close', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    service.start();
+    const socket = MockLeaderWebSocket.instances[0];
+    socket.open();
+    socket.message({ event: 'snapshot', leader, players: [player], isFlagFound: false });
+
+    socket.serverClose(true, 1001, 'Server shutting down');
+    vi.runAllTimers();
+
+    expect(service.state()).toBe('shutdown');
+    expect(service.status()).toBe('The server has stopped this connection.');
+    expect(MockLeaderWebSocket.instances).toHaveLength(1);
+  });
 });
