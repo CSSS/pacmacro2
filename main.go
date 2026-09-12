@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"pacmacro/api"
@@ -30,6 +31,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/player/register   Register as a player and receive an ID.
 * POST  /api/admin/register    Register the administrator and set its session cookie.
 * GET   /api/admin/verify      Verify the authenticated administrator session.
+* POST  /api/admin/start	   Start the game; only the administrator can do this.
 * POST  /api/admin/update/<ID> Update a player's type.
 * POST  /api/admin/kick/<ID>   Remove a player and revoke their session.
 * POST  /api/admin/flag        Update shared flag-found state.
@@ -70,6 +72,7 @@ func main() {
 	sock.Init(&players, &game)                        // initialize sockets handler
 	admin.Init(&players, &sock, adminPassword, &game) // initialize admin handler
 	leader.Init(&players, &game, &sock)               // initialize leader handler
+	game.StartSynchronization(30 * time.Second)
 
 	http.Handle("/api/player/", corsMiddleware(&players)) // registration, list, and session verification
 	http.Handle("/api/admin/", corsMiddleware(&admin))    // registration and authenticated admin operations
