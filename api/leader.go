@@ -132,22 +132,18 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnauthorized)
 		return
 	}
-	if requestLeader.Type != TypeAntiPacLeader {
-		writeJSONError(w, http.StatusForbidden)
-		return
-	}
-
 	var request LeaderUpdateRequest
 	if !decodeJSONBody(w, r, &request) {
 		return
 	}
-	if request.Type == nil || (*request.Type != TypeGhost && *request.Type != TypeAntipac) {
+	if request.Type == nil ||
+		(*request.Type != TypeHidden && *request.Type != TypeGhost && *request.Type != TypeAntipac) {
 		writeJSONError(w, http.StatusBadRequest)
 		return
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/leader/update/"))
-	changed, result := l.players.UpdateByAntiPacLeader(
+	changed, result := l.players.UpdateByLeader(
 		PlayerID(cookie.Value),
 		targetID,
 		*request.Type,
@@ -323,10 +319,39 @@ func (l *Leader) BroadcastPlayer(player PlayerResponse) {
 				_ = connection.Close()
 				continue
 			}
+			// A newly assigned AntiPac Leader was previously unable to see the
+			// current Antipac. Send it immediately with the self-role event so
+			// their panel does not need to wait for a refresh or future change.
+			if owner.Type == TypeAntiPacLeader {
+				_, visiblePlayers, authorized := l.players.LeaderState(ownerID)
+				if !authorized {
+					delete(l.connections, connection)
+					_ = connection.Close()
+					continue
+				}
+				writeFailed := false
+				for _, visiblePlayer := range visiblePlayers {
+					if visiblePlayer.Type != TypeAntipac {
+						continue
+					}
+					visible := visiblePlayer
+					if !writeLeaderSocketMessage(connection, LeaderSocketMessage{
+						Event: LeaderEventUpsert, Player: &visible,
+					}) {
+						delete(l.connections, connection)
+						_ = connection.Close()
+						writeFailed = true
+						break
+					}
+				}
+				if writeFailed {
+					continue
+				}
+			}
 		}
 
 		var message LeaderSocketMessage
-		if IsLeaderType(player.Type) {
+		if !IsVisibleToLeaderPanel(owner.Type, player.Type) {
 			message = LeaderSocketMessage{Event: LeaderEventRemove, PlayerID: player.ID}
 		} else {
 			upsert := player

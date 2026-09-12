@@ -81,6 +81,59 @@ func TestPlayerListUsesJSONArrayResponse(t *testing.T) {
 	}
 }
 
+func TestPlayerVerifyAcceptsAnyExistingPlayer(t *testing.T) {
+	players := new(Players)
+	players.Init()
+
+	for _, playerType := range []PlayerType{TypeGhost, TypeLeader} {
+		playerID := players.New(playerType, "Player", StatusDisc)
+		request := httptest.NewRequest(http.MethodGet, "/api/player/verify", nil)
+		request.AddCookie(&http.Cookie{Name: "id", Value: string(playerID)})
+		response := httptest.NewRecorder()
+		players.ServeHTTP(response, request)
+
+		if response.Code != http.StatusNoContent {
+			t.Errorf("verify %s status = %d, want %d", TypeString(playerType), response.Code, http.StatusNoContent)
+		}
+	}
+}
+
+func TestPlayerVerifyRejectsMissingBlankAndUnknownIDs(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	players.New(TypeGhost, "Player", StatusDisc)
+
+	for _, cookieValue := range []string{"", "UNKNOWN"} {
+		request := httptest.NewRequest(http.MethodGet, "/api/player/verify", nil)
+		if cookieValue != "" {
+			request.AddCookie(&http.Cookie{Name: "id", Value: cookieValue})
+		}
+		response := httptest.NewRecorder()
+		players.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("verify cookie %q status = %d, want %d", cookieValue, response.Code, http.StatusUnauthorized)
+		}
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/player/verify", nil)
+	request.Header.Set("Cookie", "id=")
+	response := httptest.NewRecorder()
+	players.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Errorf("verify blank cookie status = %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestPlayerVerifyRejectsNonGET(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	response := httptest.NewRecorder()
+	players.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/player/verify", nil))
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Errorf("verify POST status = %d, want %d", response.Code, http.StatusMethodNotAllowed)
+	}
+}
+
 func TestPlayerResponseContainsTypeWithoutRepresentationField(t *testing.T) {
 	players := new(Players)
 	players.Init()

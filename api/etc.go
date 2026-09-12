@@ -13,7 +13,15 @@ import (
 	ws "github.com/gorilla/websocket"
 )
 
-type PlayerType uint64
+type PlayerType uint8
+type PlayerStatus uint8
+
+const (
+	// player status
+	StatusGone PlayerStatus = iota // zero-value; out-of-game
+	StatusDisc                     // user is disconnected; await re-connection
+	StatusConn                     // user is connected
+)
 
 const (
 	// commands
@@ -31,11 +39,6 @@ const (
 	TypeLeader        PlayerType = 5
 	TypeAntiPacLeader PlayerType = 6
 	TypeFlagLeader    PlayerType = 7
-
-	// user status
-	StatusGone = 0 // zero-value; out-of-game
-	StatusDisc = 1 // user is disconnected; await re-connection
-	StatusConn = 2 // user is connected
 
 	id_length = 4 // length of a session ID
 
@@ -155,6 +158,20 @@ func (playerType PlayerType) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// IsLeaderPanelRole reports whether a player belongs in the leader control
+// panel. The panel deliberately only exposes roles leaders can manage.
+func IsLeaderPanelRole(playerType PlayerType) bool {
+	return playerType == TypeGhost || playerType == TypeHidden || playerType == TypeAntipac
+}
+
+// IsVisibleToLeaderPanel applies the capability-specific panel visibility
+// rule. Antipac is only actionable for AntiPac Leaders, so other leaders do
+// not receive it in their panel state.
+func IsVisibleToLeaderPanel(leaderType, playerType PlayerType) bool {
+	return IsLeaderPanelRole(playerType) &&
+		(playerType != TypeAntipac || leaderType == TypeAntiPacLeader)
 }
 
 func TypeString(playerType PlayerType) string {

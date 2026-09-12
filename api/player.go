@@ -22,16 +22,16 @@ type PlayerRegistrationResponse struct {
 }
 
 type PlayerResponse struct {
-	ID     PlayerID   `json:"id"`
-	Name   string     `json:"name"`
-	Type   PlayerType `json:"type"`
-	Status uint64     `json:"status"`
+	ID     PlayerID     `json:"id"`
+	Name   string       `json:"name"`
+	Type   PlayerType   `json:"type"`
+	Status PlayerStatus `json:"status"`
 }
 
 type Player struct {
-	Name   string     `json:"name"` // alt.: description
-	Type   PlayerType `json:"type"`
-	Status uint64     `json:"status"`
+	Name   string       `json:"name"` // alt.: description
+	Type   PlayerType   `json:"type"`
+	Status PlayerStatus `json:"status"`
 }
 
 func (p *Player) Format(ID PlayerID) string {
@@ -106,7 +106,7 @@ func (p *Players) notifyRemoval(ID PlayerID) {
 	}
 }
 
-func (p *Players) New(playerType PlayerType, name string, status uint64) PlayerID {
+func (p *Players) New(playerType PlayerType, name string, status PlayerStatus) PlayerID {
 	if !playerType.Valid() {
 		return ""
 	}
@@ -155,7 +155,7 @@ func (p *Players) Delete(ID PlayerID) {
 	}
 }
 
-func (p *Players) SetStatus(ID PlayerID, status uint64) {
+func (p *Players) SetStatus(ID PlayerID, status PlayerStatus) {
 	p.mutex.Lock()
 	player, found := p.players[ID]
 	if found {
@@ -264,9 +264,9 @@ const (
 	LeaderUpdateConflict
 )
 
-// UpdateByAntiPacLeader performs authorization, eligibility checks, and the
+// UpdateByLeader performs authorization, capability checks, and the
 // single-Antipac transition while holding the player lock.
-func (p *Players) UpdateByAntiPacLeader(
+func (p *Players) UpdateByLeader(
 	leaderID PlayerID,
 	targetID PlayerID,
 	playerType PlayerType,
@@ -277,19 +277,29 @@ func (p *Players) UpdateByAntiPacLeader(
 		p.mutex.Unlock()
 		return nil, LeaderUpdateUnauthorized
 	}
-	if leader.Type != TypeAntiPacLeader {
-		p.mutex.Unlock()
-		return nil, LeaderUpdateForbidden
-	}
 	target, found := p.players[targetID]
 	if !found {
 		p.mutex.Unlock()
 		return nil, LeaderUpdateNotFound
 	}
-	if target.Status != StatusConn ||
-		(target.Type != TypeGhost && target.Type != TypeEdible && target.Type != TypeAntipac) {
+	if IsLeaderType(target.Type) {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateForbidden
+	}
+
+	if !IsLeaderPanelRole(target.Type) {
 		p.mutex.Unlock()
 		return nil, LeaderUpdateConflict
+	}
+	if playerType == TypeAntipac {
+		if leader.Type != TypeAntiPacLeader {
+			p.mutex.Unlock()
+			return nil, LeaderUpdateForbidden
+		}
+		if target.Type != TypeGhost {
+			p.mutex.Unlock()
+			return nil, LeaderUpdateConflict
+		}
 	}
 
 	changed := make([]PlayerResponse, 0, 2)
@@ -334,7 +344,7 @@ func (p *Players) ResetNonLeaders() []PlayerResponse {
 }
 
 // LeaderState returns an authorization-checked, consistent leader panel
-// snapshot. All leader roles are excluded from the player list.
+// snapshot. It only includes roles that can appear in the leader panel.
 func (p *Players) LeaderState(ID PlayerID) (PlayerResponse, []PlayerResponse, bool) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -344,7 +354,7 @@ func (p *Players) LeaderState(ID PlayerID) (PlayerResponse, []PlayerResponse, bo
 	}
 	players := make([]PlayerResponse, 0, len(p.players)-1)
 	for playerID, player := range p.players {
-		if IsLeaderType(player.Type) {
+		if !IsVisibleToLeaderPanel(leader.Type, player.Type) {
 			continue
 		}
 		players = append(players, newPlayerResponse(playerID, player))
@@ -363,6 +373,9 @@ func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch base {
 	case "list.json":
 		p.ServeList(w, r)
+		// GET /api/player/verify
+	case "verify":
+		p.ServeVerify(w, r)
 		// POST /api/player/register
 	case "register":
 		p.ServeRegister(w, r)
@@ -370,6 +383,24 @@ func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
+}
+
+// GET /api/player/verify
+// Verifies that the browser's player session ID still exists. Every player
+// type, including leader types, is a valid game session.
+func (p *Players) ServeVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
+		return
+	}
+
+	cookie, err := r.Cookie("id")
+	if err != nil || cookie.Value == "" || p.Get(PlayerID(cookie.Value)) == nil {
+		writeJSONError(w, http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GET /api/player/list.json

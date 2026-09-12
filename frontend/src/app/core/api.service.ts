@@ -18,6 +18,10 @@ export class ApiService {
     return this.http.get<MapInfo>('/api/game/map.json');
   }
 
+  verifyPlayer(): Observable<void> {
+    return this.http.get<void>('/api/player/verify', { withCredentials: true });
+  }
+
   registerPlayer(name: string): Observable<PlayerRegistrationResponse> {
     return this.http.post<PlayerRegistrationResponse>('/api/player/register', {
       name,

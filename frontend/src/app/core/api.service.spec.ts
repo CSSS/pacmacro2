@@ -30,6 +30,15 @@ describe('ApiService', () => {
     });
   });
 
+  it('verifies the player session with cookie credentials', () => {
+    api.verifyPlayer().subscribe();
+    const request = http.expectOne('/api/player/verify');
+
+    expect(request.request.method).toBe('GET');
+    expect(request.request.withCredentials).toBe(true);
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('registers a player and reads the response', () => {
     api.registerPlayer('Test').subscribe();
     const request = http.expectOne('/api/player/register');

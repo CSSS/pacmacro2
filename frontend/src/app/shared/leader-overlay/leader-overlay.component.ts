@@ -47,7 +47,6 @@ export class LeaderOverlayComponent {
     () => this.leader()?.type === PlayerType.AntiPacLeader,
   );
   protected readonly isFlagLeader = computed(() => this.leader()?.type === PlayerType.FlagLeader);
-  protected readonly isReadOnlyLeader = computed(() => this.leader()?.type === PlayerType.Leader);
   protected readonly filteredPlayers = computed(() => {
     const search = this.playerSearch().trim().toLowerCase();
     return search
@@ -73,19 +72,14 @@ export class LeaderOverlayComponent {
     return player.status === PlayerStatus.Connected;
   }
 
-  protected isEligible(player: Player): boolean {
-    return (
-      this.isConnected(player) &&
-      (player.type === PlayerType.Ghost ||
-        player.type === PlayerType.Edible ||
-        player.type === PlayerType.Antipac)
-    );
-  }
-
-  protected isTypeSelected(player: Player, playerType: PlayerType): boolean {
-    return playerType === PlayerType.Ghost
-      ? player.type === PlayerType.Ghost || player.type === PlayerType.Edible
-      : player.type === playerType;
+  protected canAssignType(player: Player, playerType: PlayerType): boolean {
+    if (!this.leader() || this.isPlayerSaving(player.id) || player.type === playerType) {
+      return false;
+    }
+    if (playerType === PlayerType.Antipac) {
+      return this.isAntiPacLeader() && player.type === PlayerType.Ghost;
+    }
+    return playerType === PlayerType.Ghost || playerType === PlayerType.Hidden;
   }
 
   protected isPlayerSaving(playerId: string): boolean {
@@ -117,18 +111,11 @@ export class LeaderOverlayComponent {
     }
   }
 
-  protected async updateType(player: Player, playerType: PlayerType, event: Event): Promise<void> {
-    if (
-      !this.isAntiPacLeader() ||
-      !this.isEligible(player) ||
-      this.isPlayerSaving(player.id) ||
-      this.isTypeSelected(player, playerType) ||
-      (playerType !== PlayerType.Ghost && playerType !== PlayerType.Antipac)
-    ) {
+  protected async updateType(player: Player, playerType: PlayerType): Promise<void> {
+    if (!this.canAssignType(player, playerType)) {
       return;
     }
 
-    const radioGroup = (event.currentTarget as HTMLInputElement).closest('.player-types');
     const previousTypes = this.applyLocalTypeSelection(player.id, playerType);
     this.setPlayerSaving(player.id, true);
     this.status.set(`Updating ${player.name} (${player.id})…`);
@@ -137,7 +124,6 @@ export class LeaderOverlayComponent {
       this.status.set(`Updated ${player.name} (${player.id}).`);
     } catch (error) {
       this.restoreLocalTypes(previousTypes);
-      this.restoreTypeSelection(radioGroup, previousTypes.get(player.id) ?? player.type);
       this.status.set(this.actionError(error, `update ${player.name} (${player.id})`));
     } finally {
       this.setPlayerSaving(player.id, false);
@@ -201,14 +187,6 @@ export class LeaderOverlayComponent {
     );
   }
 
-  private restoreTypeSelection(radioGroup: Element | null, playerType: PlayerType): void {
-    const selectedType = playerType === PlayerType.Edible ? PlayerType.Ghost : playerType;
-    for (const input of radioGroup?.querySelectorAll<HTMLInputElement>('input[type="radio"]') ??
-      []) {
-      input.checked = Number(input.value) === selectedType;
-    }
-  }
-
   private setPlayerSaving(playerId: string, saving: boolean): void {
     this.savingPlayerIds.update((ids) => {
       const updated = new Set(ids);
@@ -231,7 +209,7 @@ export class LeaderOverlayComponent {
         case 404:
           return `Could not ${action}: that player no longer exists. Refresh the player list.`;
         case 409:
-          return `Could not ${action}: that player is offline or no longer eligible. Refresh the player list.`;
+          return `Could not ${action}: that player no longer has an assignable role. Refresh the player list.`;
       }
     }
     return `Could not ${action}. Check the connection and try again.`;

@@ -202,7 +202,7 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 		t,
 		http.MethodPost,
 		"/api/admin/flag",
-		AdminFlagRequest{IsFlagFound: boolPointer(true)},
+		AdminFlagRequest{IsFlagFound: new(true)},
 	)
 	request.AddCookie(cookie)
 	response := httptest.NewRecorder()
@@ -228,7 +228,7 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 		t,
 		http.MethodPost,
 		"/api/admin/flag",
-		AdminFlagRequest{IsFlagFound: boolPointer(false)},
+		AdminFlagRequest{IsFlagFound: new(false)},
 	)
 	unauthorizedResponse := httptest.NewRecorder()
 	admin.ServeHTTP(unauthorizedResponse, unauthorized)

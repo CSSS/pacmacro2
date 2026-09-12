@@ -62,9 +62,11 @@ Its WebSocket endpoint is `WS /api/admin/map/ws`; it uses the HttpOnly admin coo
 
 Players assigned a Leader role see Leader controls alongside the live map on the
 main game page (`/`). The controls use the readable `id` cookie shared with the
-game client to identify the Leader. Generic Leaders have read-only access.
-AntiPac Leaders can select a connected Ghost, Edible, or Antipac as the single
-Antipac. Flag Leaders can control the shared flag-found state.
+game client to identify the Leader. The panel lists Ghost and Hidden players;
+AntiPac Leaders also see Antipac players. Every leader can switch listed
+players between Ghost and Hidden, including disconnected players. AntiPac
+Leaders can additionally select a Ghost as the single Antipac. Flag Leaders
+can control the shared flag-found state.
 
 ## Player types
 
@@ -99,10 +101,15 @@ leaving connected players' live coordinates intact.
 
 ## Control APIs
 
+- `GET /api/player/verify` returns `204 No Content` when the `id` cookie belongs
+  to a current player (including a leader), otherwise `401 Unauthorized`.
 - `POST /api/admin/reset` resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
-- `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie.
-- `POST /api/leader/update/<ID>` accepts `{ "type": 2|3 }` from an AntiPac Leader.
+- `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie; `players` contains Ghost and Hidden roles, plus Antipac only for an AntiPac Leader.
+- `POST /api/leader/update/<ID>` accepts `{ "type": 0|3 }` from any Leader for a
+  Ghost, Hidden, or Antipac target (regardless of connection status). `{ "type": 2 }`
+  is available only to an AntiPac Leader and only when the target is currently Ghost;
+  assigning it atomically demotes the previous Antipac to Ghost.
 - `POST /api/leader/flag` accepts `{ "isFlagFound": boolean }` from a Flag Leader.
 - `WS /api/leader/ws` provides leader snapshots and live player, self-role, flag, and revocation events.
 

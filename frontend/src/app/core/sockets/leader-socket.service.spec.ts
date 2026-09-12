@@ -128,7 +128,7 @@ describe('LeaderSocketService', () => {
     socket.message({ event: 'snapshot', leader, players: [], isFlagFound: false });
     socket.message({
       event: 'upsert',
-      player: { ...player, id: 'BBBB', name: 'Ben', type: PlayerType.Edible },
+      player: { ...player, id: 'BBBB', name: 'Ben', type: PlayerType.Hidden },
     });
     socket.message({
       event: 'upsert',
@@ -144,10 +144,7 @@ describe('LeaderSocketService', () => {
     expect(service.isFlagFound()).toBe(true);
     expect(service.leader()?.type).toBe(PlayerType.FlagLeader);
 
-    socket.message({
-      event: 'upsert',
-      player: { ...player, id: 'AAAA', type: PlayerType.Leader },
-    });
+    socket.message({ event: 'remove', playerId: 'AAAA' });
     socket.message({ event: 'remove', playerId: 'BBBB' });
     expect(service.players()).toEqual([]);
   });
@@ -167,6 +164,15 @@ describe('LeaderSocketService', () => {
     expect(service.leader()).toEqual(leader);
     expect(service.players()).toEqual([player]);
     expect(service.isFlagFound()).toBe(true);
+
+    expect(
+      service.applySnapshot({
+        leader: { ...leader, type: PlayerType.Leader },
+        players: [{ ...player, id: 'ANTI', type: PlayerType.Antipac }],
+        isFlagFound: false,
+      }),
+    ).toBe(false);
+    expect(service.players()).toEqual([player]);
 
     service.start();
     const socket = MockLeaderWebSocket.instances[0];

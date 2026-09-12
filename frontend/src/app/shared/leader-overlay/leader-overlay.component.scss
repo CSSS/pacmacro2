@@ -102,7 +102,7 @@
 }
 
 .leader-actions,
-.player-types {
+.player-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -125,14 +125,6 @@
     background: #166534;
     border-color: #166534;
   }
-}
-
-.capability-note {
-  margin-block: 1rem;
-  padding: 1rem;
-  border: 1px solid #333;
-  border-radius: 0.5rem;
-  background: #1e1e30;
 }
 
 .player-list {
@@ -183,8 +175,7 @@
   gap: 0.25rem;
 }
 
-.player-card__identity span,
-.player-card__role {
+.player-card__identity span {
   color: #aaa;
   font-size: 0.8rem;
 }
@@ -199,39 +190,6 @@
   border-radius: 0.5rem;
   text-align: center;
   color: #aaa;
-}
-
-.player-type {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.player-type + label {
-  display: inline-flex;
-  align-items: center;
-  background: #2a2a3e;
-  color: #eee;
-  border-color: #555;
-}
-
-.player-type:not(:disabled) + label:hover,
-.player-type:checked + label {
-  background: #eee;
-  color: #111;
-}
-
-.player-type:focus-visible + label {
-  outline: 0.2rem solid #f30180;
-  outline-offset: 0.15rem;
-}
-
-.player-type:disabled + label {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 @media (min-width: 48.0625rem) {
