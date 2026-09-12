@@ -13,7 +13,15 @@ import (
 	ws "github.com/gorilla/websocket"
 )
 
-type PlayerType uint64
+type PlayerType uint8
+type PlayerStatus uint8
+
+const (
+	// player status
+	StatusGone PlayerStatus = iota // zero-value; out-of-game
+	StatusDisc                     // user is disconnected; await re-connection
+	StatusConn                     // user is connected
+)
 
 const (
 	// commands
@@ -31,11 +39,6 @@ const (
 	TypeLeader        PlayerType = 5
 	TypeAntiPacLeader PlayerType = 6
 	TypeFlagLeader    PlayerType = 7
-
-	// user status
-	StatusGone = 0 // zero-value; out-of-game
-	StatusDisc = 1 // user is disconnected; await re-connection
-	StatusConn = 2 // user is connected
 
 	id_length = 4 // length of a session ID
 

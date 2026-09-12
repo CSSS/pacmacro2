@@ -22,16 +22,16 @@ type PlayerRegistrationResponse struct {
 }
 
 type PlayerResponse struct {
-	ID     PlayerID   `json:"id"`
-	Name   string     `json:"name"`
-	Type   PlayerType `json:"type"`
-	Status uint64     `json:"status"`
+	ID     PlayerID     `json:"id"`
+	Name   string       `json:"name"`
+	Type   PlayerType   `json:"type"`
+	Status PlayerStatus `json:"status"`
 }
 
 type Player struct {
-	Name   string     `json:"name"` // alt.: description
-	Type   PlayerType `json:"type"`
-	Status uint64     `json:"status"`
+	Name   string       `json:"name"` // alt.: description
+	Type   PlayerType   `json:"type"`
+	Status PlayerStatus `json:"status"`
 }
 
 func (p *Player) Format(ID PlayerID) string {
@@ -106,7 +106,7 @@ func (p *Players) notifyRemoval(ID PlayerID) {
 	}
 }
 
-func (p *Players) New(playerType PlayerType, name string, status uint64) PlayerID {
+func (p *Players) New(playerType PlayerType, name string, status PlayerStatus) PlayerID {
 	if !playerType.Valid() {
 		return ""
 	}
@@ -155,7 +155,7 @@ func (p *Players) Delete(ID PlayerID) {
 	}
 }
 
-func (p *Players) SetStatus(ID PlayerID, status uint64) {
+func (p *Players) SetStatus(ID PlayerID, status PlayerStatus) {
 	p.mutex.Lock()
 	player, found := p.players[ID]
 	if found {
