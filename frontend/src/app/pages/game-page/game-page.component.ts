@@ -7,6 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -79,6 +80,21 @@ export class GamePageComponent {
       await this.router.navigateByUrl('/register');
       return;
     }
+
+    try {
+      await firstValueFrom(this.api.verifyPlayer());
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.credentials.clear();
+        await this.router.navigateByUrl('/register');
+        return;
+      }
+      this.pageStatus.set(
+        'Could not verify your player session. Check the API connection and try again.',
+      );
+      return;
+    }
+
     this.selfId.set(credentials.id);
     this.wakeLock.initialize();
 

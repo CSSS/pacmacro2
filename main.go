@@ -39,6 +39,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/leader/flag       Update flag state as Flag Leader.
 * WS    /api/leader/ws         Receive authenticated live leader-panel updates.
 * GET   /api/player/list.json  List players.
+* GET   /api/player/verify     Verify the authenticated player session.
 * GET   /api/game/map.json     Get map information; size and pellet location.
 * WS    /api/ws/<ID>           Connect to the server; expects coordinates to be
                            streamed so your location is displayed on the map. */
@@ -68,7 +69,7 @@ func main() {
 	admin.Init(&players, &sock, adminPassword, &game) // initialize admin handler
 	leader.Init(&players, &game, &sock)               // initialize leader handler
 
-	http.Handle("/api/player/", corsMiddleware(&players)) // /api/player/register; /api/player/list.json
+	http.Handle("/api/player/", corsMiddleware(&players)) // registration, list, and session verification
 	http.Handle("/api/admin/", corsMiddleware(&admin))    // registration and authenticated admin operations
 	http.Handle("/api/leader/", corsMiddleware(&leader))  // authenticated leader operations
 	http.Handle("/api/game/", corsMiddleware(&game))      // /api/game/map.json

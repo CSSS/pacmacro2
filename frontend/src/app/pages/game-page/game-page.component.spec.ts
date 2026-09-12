@@ -1,7 +1,8 @@
 import { signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { CredentialsService } from '../../core/credentials.service';
@@ -55,8 +56,15 @@ describe('GamePageComponent leader overlay', () => {
     handleVisibilityChange: vi.fn(async () => undefined),
     release: vi.fn(async () => undefined),
   };
+  const api = { getMap: vi.fn(() => of(map)), verifyPlayer: vi.fn(() => of(undefined)) };
+  const credentials = { get: vi.fn(() => ({ id: 'SELF' })), clear: vi.fn() };
+  const router = { navigateByUrl: vi.fn() };
 
   beforeEach(async () => {
+    vi.clearAllMocks();
+    api.getMap.mockReturnValue(of(map));
+    api.verifyPlayer.mockReturnValue(of(undefined));
+    credentials.get.mockReturnValue({ id: 'SELF' });
     gameSocket.players.update((players) => ({
       ...players,
       SELF: {
@@ -68,9 +76,9 @@ describe('GamePageComponent leader overlay', () => {
     await TestBed.configureTestingModule({
       imports: [GamePageComponent],
       providers: [
-        { provide: ApiService, useValue: { getMap: vi.fn(() => of(map)) } },
-        { provide: CredentialsService, useValue: { get: () => ({ id: 'SELF' }) } },
-        { provide: Router, useValue: { navigateByUrl: vi.fn() } },
+        { provide: ApiService, useValue: api },
+        { provide: CredentialsService, useValue: credentials },
+        { provide: Router, useValue: router },
       ],
     })
       .overrideComponent(GamePageComponent, {
@@ -115,5 +123,42 @@ describe('GamePageComponent leader overlay', () => {
   ])('does not activate the leader overlay for non-leader type %s', async (playerType) => {
     const page = await render(playerType);
     expect(page.querySelector('.game-page__layout--with-panel')).toBeNull();
+  });
+
+  it('verifies the session before initializing the map and socket', async () => {
+    await render(PlayerType.Ghost);
+
+    expect(api.verifyPlayer).toHaveBeenCalledOnce();
+    expect(wakeLock.initialize).toHaveBeenCalledOnce();
+    expect(api.getMap).toHaveBeenCalledOnce();
+    expect(gameSocket.setInitialState).toHaveBeenCalledWith(map);
+    expect(gameSocket.start).toHaveBeenCalledWith('SELF', expect.any(Function));
+  });
+
+  it('clears a rejected session and redirects without starting the game', async () => {
+    api.verifyPlayer.mockReturnValueOnce(
+      throwError(() => new HttpErrorResponse({ status: 401 })),
+    );
+    await render(PlayerType.Ghost);
+
+    expect(credentials.clear).toHaveBeenCalledOnce();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
+    expect(wakeLock.initialize).not.toHaveBeenCalled();
+    expect(api.getMap).not.toHaveBeenCalled();
+    expect(gameSocket.start).not.toHaveBeenCalled();
+  });
+
+  it('keeps credentials and shows an error for a verification API failure', async () => {
+    api.verifyPlayer.mockReturnValueOnce(
+      throwError(() => new HttpErrorResponse({ status: 503 })),
+    );
+    const page = await render(PlayerType.Ghost);
+
+    expect(credentials.clear).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    expect(page.textContent).toContain('Could not verify your player session');
+    expect(wakeLock.initialize).not.toHaveBeenCalled();
+    expect(api.getMap).not.toHaveBeenCalled();
+    expect(gameSocket.start).not.toHaveBeenCalled();
   });
 });

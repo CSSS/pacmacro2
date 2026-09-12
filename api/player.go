@@ -373,6 +373,9 @@ func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch base {
 	case "list.json":
 		p.ServeList(w, r)
+		// GET /api/player/verify
+	case "verify":
+		p.ServeVerify(w, r)
 		// POST /api/player/register
 	case "register":
 		p.ServeRegister(w, r)
@@ -380,6 +383,24 @@ func (p *Players) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
+}
+
+// GET /api/player/verify
+// Verifies that the browser's player session ID still exists. Every player
+// type, including leader types, is a valid game session.
+func (p *Players) ServeVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
+		return
+	}
+
+	cookie, err := r.Cookie("id")
+	if err != nil || cookie.Value == "" || p.Get(PlayerID(cookie.Value)) == nil {
+		writeJSONError(w, http.StatusUnauthorized)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GET /api/player/list.json
