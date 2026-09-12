@@ -50,6 +50,7 @@ describe('LeaderOverlayComponent', () => {
   const api = {
     getLeaderState: vi.fn(() => of(defaultState)),
     updateLeaderPlayer: vi.fn(() => of(undefined)),
+    hideLeaderPlayer: vi.fn(() => of(undefined)),
     updateFlag: vi.fn(() => of(undefined)),
   };
 
@@ -64,6 +65,8 @@ describe('LeaderOverlayComponent', () => {
     api.getLeaderState.mockReturnValue(of(defaultState));
     api.updateLeaderPlayer.mockReset();
     api.updateLeaderPlayer.mockReturnValue(of(undefined));
+    api.hideLeaderPlayer.mockReset();
+    api.hideLeaderPlayer.mockReturnValue(of(undefined));
     api.updateFlag.mockReset();
     api.updateFlag.mockReturnValue(of(undefined));
 
@@ -93,14 +96,15 @@ describe('LeaderOverlayComponent', () => {
     expect(leaderSocket.start).not.toHaveBeenCalled();
   });
 
-  it('loads state, identifies the leader, and gives generic Leaders a read-only panel', async () => {
+  it('loads state, identifies the leader, and gives generic Leaders hide controls', async () => {
     const page = await render(true);
     expect(api.getLeaderState).toHaveBeenCalledOnce();
     expect(leaderSocket.start).toHaveBeenCalledOnce();
     expect(page.querySelector('.leader-overlay__heading')?.textContent).toContain('Lee — Leader');
     expect(page.querySelectorAll('.player-card')).toHaveLength(initialPlayers.length);
     expect(page.querySelectorAll('.player-type')).toHaveLength(0);
-    expect(page.textContent).toContain('read-only');
+    expect(page.querySelectorAll('.player-hide')).toHaveLength(initialPlayers.length);
+    expect(page.textContent).not.toContain('read-only');
   });
 
   it('shows AntiPac controls only for connected Ghost, Edible, and Antipac players', async () => {
@@ -169,6 +173,51 @@ describe('LeaderOverlayComponent', () => {
     expect(page.querySelector<HTMLInputElement>('#overlay-type-GHOST-3')?.checked).toBe(true);
   });
 
+  it.each([
+    [PlayerType.Leader, 'PAC'],
+    [PlayerType.AntiPacLeader, 'GHOST'],
+    [PlayerType.FlagLeader, 'OFF'],
+  ])('allows leader type %s to hide player %s, including offline players', async (type, playerId) => {
+    const page = await render(true, stateForLeader(type));
+    const button = page.querySelector<HTMLButtonElement>(`#overlay-hide-${playerId}`);
+
+    expect(button?.disabled).toBe(false);
+    button?.click();
+    await fixture.whenStable();
+
+    expect(api.hideLeaderPlayer).toHaveBeenCalledWith(playerId);
+    expect(leaderSocket.players().find((player) => player.id === playerId)?.type).toBe(
+      PlayerType.Hidden,
+    );
+  });
+
+  it('disables Hide for an already hidden player and rolls back a failed hide', async () => {
+    const page = await render(true);
+    leaderSocket.players.update((players) =>
+      players.map((player) =>
+        player.id === 'GHOST' ? { ...player, type: PlayerType.Hidden } : player,
+      ),
+    );
+    fixture.detectChanges();
+
+    page.querySelector<HTMLButtonElement>('#overlay-hide-GHOST')?.click();
+    expect(api.hideLeaderPlayer).not.toHaveBeenCalled();
+
+    api.hideLeaderPlayer.mockReturnValueOnce(
+      throwError(() => new HttpErrorResponse({ status: 403 })),
+    );
+    page.querySelector<HTMLButtonElement>('#overlay-hide-PAC')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(leaderSocket.players().find((player) => player.id === 'PAC')?.type).toBe(
+      PlayerType.Pacman,
+    );
+    expect(page.querySelector('.action-status')?.textContent).toContain(
+      'does not have this capability',
+    );
+  });
+
   it('shows Flag Leader control as a pressed button and rolls it back on failure', async () => {
     api.updateFlag.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 403 })));
     const page = await render(true, stateForLeader(PlayerType.FlagLeader, true));
@@ -203,6 +252,8 @@ describe('LeaderOverlayComponent', () => {
     leaderSocket.leader.set({ ...genericLeader, type: PlayerType.Leader });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelectorAll('.player-type').length).toBe(0);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('read-only');
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.player-hide')).toHaveLength(
+      initialPlayers.length,
+    );
   });
 });

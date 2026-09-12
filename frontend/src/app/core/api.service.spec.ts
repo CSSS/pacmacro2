@@ -103,6 +103,13 @@ describe('ApiService', () => {
     expect(updateRequest.request.body).toEqual({ type: PlayerType.Antipac });
     updateRequest.flush(null, { status: 204, statusText: 'No Content' });
 
+    api.hideLeaderPlayer('AB CD').subscribe();
+    const hideRequest = http.expectOne('/api/leader/update/AB%20CD');
+    expect(hideRequest.request.method).toBe('POST');
+    expect(hideRequest.request.withCredentials).toBe(true);
+    expect(hideRequest.request.body).toEqual({ type: PlayerType.Hidden });
+    hideRequest.flush(null, { status: 204, statusText: 'No Content' });
+
     api.updateFlag(true).subscribe();
     const flagRequest = http.expectOne('/api/leader/flag');
     expect(flagRequest.request.method).toBe('POST');

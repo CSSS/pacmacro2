@@ -62,9 +62,10 @@ Its WebSocket endpoint is `WS /api/admin/map/ws`; it uses the HttpOnly admin coo
 
 Players assigned a Leader role see Leader controls alongside the live map on the
 main game page (`/`). The controls use the readable `id` cookie shared with the
-game client to identify the Leader. Generic Leaders have read-only access.
-AntiPac Leaders can select a connected Ghost, Edible, or Antipac as the single
-Antipac. Flag Leaders can control the shared flag-found state.
+game client to identify the Leader. Every leader can hide any non-leader,
+including disconnected players. AntiPac Leaders can additionally select a
+connected Ghost, Edible, or Antipac as the single Antipac. Flag Leaders can
+control the shared flag-found state.
 
 ## Player types
 
@@ -102,7 +103,9 @@ leaving connected players' live coordinates intact.
 - `POST /api/admin/reset` resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
 - `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie.
-- `POST /api/leader/update/<ID>` accepts `{ "type": 2|3 }` from an AntiPac Leader.
+- `POST /api/leader/update/<ID>` accepts `{ "type": 0 }` from any Leader for a
+  non-leader target, and `{ "type": 2|3 }` from an AntiPac Leader for an eligible
+  connected target.
 - `POST /api/leader/flag` accepts `{ "isFlagFound": boolean }` from a Flag Leader.
 - `WS /api/leader/ws` provides leader snapshots and live player, self-role, flag, and revocation events.
 

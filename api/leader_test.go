@@ -94,7 +94,7 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 	targetID := players.New(TypeEdible, "Target", StatusConn)
 	offlineID := players.New(TypeGhost, "Offline", StatusDisc)
 
-	request := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: playerTypePointer(TypeAntipac)})
+	request := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: new(TypeAntipac)})
 	addLeaderCookie(request, leaderID)
 	response := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(response, request)
@@ -108,7 +108,7 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 		t.Errorf("target = %#v, want Antipac", player)
 	}
 
-	wrong := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: playerTypePointer(TypeGhost)})
+	wrong := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: new(TypeGhost)})
 	addLeaderCookie(wrong, wrongLeaderID)
 	wrongResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(wrongResponse, wrong)
@@ -116,7 +116,7 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 		t.Errorf("wrong capability status = %d, want 403", wrongResponse.Code)
 	}
 
-	offline := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(offlineID), LeaderUpdateRequest{Type: playerTypePointer(TypeAntipac)})
+	offline := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(offlineID), LeaderUpdateRequest{Type: new(TypeAntipac)})
 	addLeaderCookie(offline, leaderID)
 	offlineResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(offlineResponse, offline)
@@ -124,7 +124,7 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 		t.Errorf("offline target status = %d, want 409", offlineResponse.Code)
 	}
 
-	missing := newJSONRequest(t, http.MethodPost, "/api/leader/update/NOPE", LeaderUpdateRequest{Type: playerTypePointer(TypeGhost)})
+	missing := newJSONRequest(t, http.MethodPost, "/api/leader/update/NOPE", LeaderUpdateRequest{Type: new(TypeGhost)})
 	addLeaderCookie(missing, leaderID)
 	missingResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(missingResponse, missing)
@@ -141,6 +141,63 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 	}
 }
 
+func TestAllLeadersCanHideNonLeadersRegardlessOfStatus(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	leaders := []struct {
+		name       string
+		playerType PlayerType
+	}{
+		{"generic", TypeLeader},
+		{"anti-pac", TypeAntiPacLeader},
+		{"flag", TypeFlagLeader},
+	}
+	targets := []struct {
+		name       string
+		playerType PlayerType
+		status     PlayerStatus
+	}{
+		{"connected Pacman", TypePacman, StatusConn},
+		{"disconnected Ghost", TypeGhost, StatusDisc},
+		{"connected Edible", TypeEdible, StatusConn},
+	}
+
+	for index, leader := range leaders {
+		leaderID := players.New(leader.playerType, leader.name, StatusDisc)
+		target := targets[index]
+		targetID := players.New(target.playerType, target.name, target.status)
+		for range 2 {
+			request := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: new(TypeHidden)})
+			addLeaderCookie(request, leaderID)
+			response := httptest.NewRecorder()
+			leaderAPI.ServeHTTP(response, request)
+			if response.Code != http.StatusNoContent {
+				t.Errorf("%s leader hide status = %d, want 204", leader.name, response.Code)
+			}
+		}
+		if player := players.Get(targetID); player == nil || player.Type != TypeHidden {
+			t.Errorf("%s target = %#v, want Hidden", leader.name, player)
+		}
+	}
+}
+
+func TestLeadersCannotHideLeaderTargets(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	requesterID := players.New(TypeLeader, "Requester", StatusDisc)
+	for _, targetType := range []PlayerType{TypeLeader, TypeAntiPacLeader, TypeFlagLeader} {
+		targetID := players.New(targetType, TypeString(targetType), StatusDisc)
+		request := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: new(TypeHidden)})
+		addLeaderCookie(request, requesterID)
+		response := httptest.NewRecorder()
+		leaderAPI.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Errorf("hide %s status = %d, want 403", TypeString(targetType), response.Code)
+		}
+		if player := players.Get(targetID); player == nil || player.Type != targetType {
+			t.Errorf("%s target = %#v, want unchanged", TypeString(targetType), player)
+		}
+	}
+}
+
 func TestFlagLeaderUpdatesAreCapabilityCheckedAndIdempotent(t *testing.T) {
 	players, game, _, leaderAPI := newLeaderTestState()
 	flagLeaderID := players.New(TypeFlagLeader, "Flag", StatusDisc)
@@ -149,7 +206,7 @@ func TestFlagLeaderUpdatesAreCapabilityCheckedAndIdempotent(t *testing.T) {
 	game.AddObserver(func(GameState) { updates++ })
 
 	for range 2 {
-		request := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: boolPointer(true)})
+		request := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: new(true)})
 		addLeaderCookie(request, flagLeaderID)
 		response := httptest.NewRecorder()
 		leaderAPI.ServeHTTP(response, request)
@@ -161,7 +218,7 @@ func TestFlagLeaderUpdatesAreCapabilityCheckedAndIdempotent(t *testing.T) {
 		t.Errorf("flag state = %#v, updates = %d; want true and 1", game.State(), updates)
 	}
 
-	wrong := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: boolPointer(false)})
+	wrong := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: new(false)})
 	addLeaderCookie(wrong, genericID)
 	wrongResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(wrongResponse, wrong)
@@ -223,6 +280,3 @@ func TestLeaderSocketSupportsMultipleConnectionsAndLiveFlag(t *testing.T) {
 		}
 	}
 }
-
-func playerTypePointer(value PlayerType) *PlayerType { return &value }
-func boolPointer(value bool) *bool                   { return &value }

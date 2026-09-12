@@ -47,7 +47,6 @@ export class LeaderOverlayComponent {
     () => this.leader()?.type === PlayerType.AntiPacLeader,
   );
   protected readonly isFlagLeader = computed(() => this.leader()?.type === PlayerType.FlagLeader);
-  protected readonly isReadOnlyLeader = computed(() => this.leader()?.type === PlayerType.Leader);
   protected readonly filteredPlayers = computed(() => {
     const search = this.playerSearch().trim().toLowerCase();
     return search
@@ -139,6 +138,25 @@ export class LeaderOverlayComponent {
       this.restoreLocalTypes(previousTypes);
       this.restoreTypeSelection(radioGroup, previousTypes.get(player.id) ?? player.type);
       this.status.set(this.actionError(error, `update ${player.name} (${player.id})`));
+    } finally {
+      this.setPlayerSaving(player.id, false);
+    }
+  }
+
+  protected async hidePlayer(player: Player): Promise<void> {
+    if (!this.leader() || player.type === PlayerType.Hidden || this.isPlayerSaving(player.id)) {
+      return;
+    }
+
+    const previousTypes = this.applyLocalTypeSelection(player.id, PlayerType.Hidden);
+    this.setPlayerSaving(player.id, true);
+    this.status.set(`Hiding ${player.name} (${player.id})…`);
+    try {
+      await firstValueFrom(this.api.hideLeaderPlayer(player.id));
+      this.status.set(`Hid ${player.name} (${player.id}).`);
+    } catch (error) {
+      this.restoreLocalTypes(previousTypes);
+      this.status.set(this.actionError(error, `hide ${player.name} (${player.id})`));
     } finally {
       this.setPlayerSaving(player.id, false);
     }

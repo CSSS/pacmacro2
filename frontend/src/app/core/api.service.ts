@@ -62,6 +62,14 @@ export class ApiService {
     );
   }
 
+  hideLeaderPlayer(playerId: string): Observable<void> {
+    return this.http.post<void>(
+      `/api/leader/update/${encodeURIComponent(playerId)}`,
+      { type: PlayerType.Hidden },
+      { withCredentials: true },
+    );
+  }
+
   updateFlag(isFlagFound: boolean): Observable<void> {
     return this.http.post<void>('/api/leader/flag', { isFlagFound }, { withCredentials: true });
   }

@@ -132,22 +132,18 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnauthorized)
 		return
 	}
-	if requestLeader.Type != TypeAntiPacLeader {
-		writeJSONError(w, http.StatusForbidden)
-		return
-	}
-
 	var request LeaderUpdateRequest
 	if !decodeJSONBody(w, r, &request) {
 		return
 	}
-	if request.Type == nil || (*request.Type != TypeGhost && *request.Type != TypeAntipac) {
+	if request.Type == nil ||
+		(*request.Type != TypeHidden && *request.Type != TypeGhost && *request.Type != TypeAntipac) {
 		writeJSONError(w, http.StatusBadRequest)
 		return
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/leader/update/"))
-	changed, result := l.players.UpdateByAntiPacLeader(
+	changed, result := l.players.UpdateByLeader(
 		PlayerID(cookie.Value),
 		targetID,
 		*request.Type,

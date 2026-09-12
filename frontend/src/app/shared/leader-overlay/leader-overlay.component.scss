@@ -102,6 +102,7 @@
 }
 
 .leader-actions,
+.player-actions,
 .player-types {
   display: flex;
   flex-wrap: wrap;
@@ -125,14 +126,6 @@
     background: #166534;
     border-color: #166534;
   }
-}
-
-.capability-note {
-  margin-block: 1rem;
-  padding: 1rem;
-  border: 1px solid #333;
-  border-radius: 0.5rem;
-  background: #1e1e30;
 }
 
 .player-list {
@@ -183,8 +176,7 @@
   gap: 0.25rem;
 }
 
-.player-card__identity span,
-.player-card__role {
+.player-card__identity span {
   color: #aaa;
   font-size: 0.8rem;
 }

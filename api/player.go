@@ -264,9 +264,9 @@ const (
 	LeaderUpdateConflict
 )
 
-// UpdateByAntiPacLeader performs authorization, eligibility checks, and the
+// UpdateByLeader performs authorization, capability checks, and the
 // single-Antipac transition while holding the player lock.
-func (p *Players) UpdateByAntiPacLeader(
+func (p *Players) UpdateByLeader(
 	leaderID PlayerID,
 	targetID PlayerID,
 	playerType PlayerType,
@@ -277,19 +277,26 @@ func (p *Players) UpdateByAntiPacLeader(
 		p.mutex.Unlock()
 		return nil, LeaderUpdateUnauthorized
 	}
-	if leader.Type != TypeAntiPacLeader {
-		p.mutex.Unlock()
-		return nil, LeaderUpdateForbidden
-	}
 	target, found := p.players[targetID]
 	if !found {
 		p.mutex.Unlock()
 		return nil, LeaderUpdateNotFound
 	}
-	if target.Status != StatusConn ||
-		(target.Type != TypeGhost && target.Type != TypeEdible && target.Type != TypeAntipac) {
+	if IsLeaderType(target.Type) {
 		p.mutex.Unlock()
-		return nil, LeaderUpdateConflict
+		return nil, LeaderUpdateForbidden
+	}
+
+	if playerType != TypeHidden {
+		if leader.Type != TypeAntiPacLeader {
+			p.mutex.Unlock()
+			return nil, LeaderUpdateForbidden
+		}
+		if target.Status != StatusConn ||
+			(target.Type != TypeGhost && target.Type != TypeEdible && target.Type != TypeAntipac) {
+			p.mutex.Unlock()
+			return nil, LeaderUpdateConflict
+		}
 	}
 
 	changed := make([]PlayerResponse, 0, 2)
