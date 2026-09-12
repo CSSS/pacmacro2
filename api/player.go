@@ -287,13 +287,16 @@ func (p *Players) UpdateByLeader(
 		return nil, LeaderUpdateForbidden
 	}
 
-	if playerType != TypeHidden {
+	if !IsLeaderPanelRole(target.Type) {
+		p.mutex.Unlock()
+		return nil, LeaderUpdateConflict
+	}
+	if playerType == TypeAntipac {
 		if leader.Type != TypeAntiPacLeader {
 			p.mutex.Unlock()
 			return nil, LeaderUpdateForbidden
 		}
-		if target.Status != StatusConn ||
-			(target.Type != TypeGhost && target.Type != TypeEdible && target.Type != TypeAntipac) {
+		if target.Type != TypeGhost {
 			p.mutex.Unlock()
 			return nil, LeaderUpdateConflict
 		}
@@ -341,7 +344,7 @@ func (p *Players) ResetNonLeaders() []PlayerResponse {
 }
 
 // LeaderState returns an authorization-checked, consistent leader panel
-// snapshot. All leader roles are excluded from the player list.
+// snapshot. It only includes roles that can appear in the leader panel.
 func (p *Players) LeaderState(ID PlayerID) (PlayerResponse, []PlayerResponse, bool) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -351,7 +354,7 @@ func (p *Players) LeaderState(ID PlayerID) (PlayerResponse, []PlayerResponse, bo
 	}
 	players := make([]PlayerResponse, 0, len(p.players)-1)
 	for playerID, player := range p.players {
-		if IsLeaderType(player.Type) {
+		if !IsVisibleToLeaderPanel(leader.Type, player.Type) {
 			continue
 		}
 		players = append(players, newPlayerResponse(playerID, player))

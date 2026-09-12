@@ -62,6 +62,10 @@ func TestLeaderStateAuthenticationAndFiltering(t *testing.T) {
 	players.New(TypeLeader, "Generic", StatusDisc)
 	players.New(TypeFlagLeader, "Flag", StatusDisc)
 	playerID := players.New(TypeGhost, "Player", StatusConn)
+	players.New(TypeHidden, "Hidden", StatusDisc)
+	players.New(TypeAntipac, "Antipac", StatusDisc)
+	players.New(TypePacman, "Pacman", StatusConn)
+	players.New(TypeEdible, "Edible", StatusConn)
 	game.SetFlagFound(true)
 
 	unauthorized := httptest.NewRecorder()
@@ -81,8 +85,79 @@ func TestLeaderStateAuthenticationAndFiltering(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&state); err != nil {
 		t.Fatal(err)
 	}
-	if state.Leader.ID != leaderID || len(state.Players) != 1 || state.Players[0].ID != playerID || !state.IsFlagFound {
+	if state.Leader.ID != leaderID || len(state.Players) != 3 || !state.IsFlagFound {
 		t.Errorf("leader state = %#v", state)
+	}
+	foundGhost := false
+	for _, player := range state.Players {
+		if !IsLeaderPanelRole(player.Type) {
+			t.Errorf("unlisted role in state: %#v", player)
+		}
+		foundGhost = foundGhost || player.ID == playerID
+	}
+	if !foundGhost {
+		t.Error("Ghost missing from state")
+	}
+
+	genericID := players.New(TypeLeader, "Second generic", StatusDisc)
+	genericRequest := httptest.NewRequest(http.MethodGet, "/api/leader/state.json", nil)
+	addLeaderCookie(genericRequest, genericID)
+	genericResponse := httptest.NewRecorder()
+	leaderAPI.ServeHTTP(genericResponse, genericRequest)
+	var genericState LeaderStateResponse
+	if genericResponse.Code != http.StatusOK || json.NewDecoder(genericResponse.Body).Decode(&genericState) != nil {
+		t.Fatalf("generic state response = %d", genericResponse.Code)
+	}
+	for _, player := range genericState.Players {
+		if player.Type == TypeAntipac {
+			t.Errorf("generic Leader received Antipac: %#v", genericState.Players)
+		}
+	}
+}
+
+func TestLeaderSocketHidesAntipacFromNonAntiPacLeaders(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	antiLeaderID := players.New(TypeAntiPacLeader, "Anti", StatusDisc)
+	genericLeaderID := players.New(TypeLeader, "Generic", StatusDisc)
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+	antiConnection := new(recordingLeaderConnection)
+	genericConnection := new(recordingLeaderConnection)
+	if !leaderAPI.addConnection(antiConnection, antiLeaderID) ||
+		!leaderAPI.addConnection(genericConnection, genericLeaderID) {
+		t.Fatal("add leader connections")
+	}
+
+	players.Update(playerID, TypeAntipac)
+	antiMessages := antiConnection.decoded(t)
+	genericMessages := genericConnection.decoded(t)
+	if antiMessages[len(antiMessages)-1].Event != LeaderEventUpsert ||
+		antiMessages[len(antiMessages)-1].Player == nil ||
+		antiMessages[len(antiMessages)-1].Player.Type != TypeAntipac {
+		t.Fatalf("AntiPac Leader messages = %#v", antiMessages)
+	}
+	if genericMessages[len(genericMessages)-1].Event != LeaderEventRemove ||
+		genericMessages[len(genericMessages)-1].PlayerID != playerID {
+		t.Fatalf("generic Leader messages = %#v", genericMessages)
+	}
+}
+
+func TestPromotedAntiPacLeaderReceivesCurrentAntipac(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	leaderID := players.New(TypeLeader, "Leader", StatusDisc)
+	antipacID := players.New(TypeAntipac, "Antipac", StatusDisc)
+	connection := new(recordingLeaderConnection)
+	if !leaderAPI.addConnection(connection, leaderID) {
+		t.Fatal("add leader connection")
+	}
+
+	players.Update(leaderID, TypeAntiPacLeader)
+	messages := connection.decoded(t)
+	if len(messages) != 4 || messages[1].Event != LeaderEventSelf ||
+		messages[1].Leader == nil || messages[1].Leader.Type != TypeAntiPacLeader ||
+		messages[2].Event != LeaderEventUpsert || messages[2].Player == nil ||
+		messages[2].Player.ID != antipacID || messages[2].Player.Type != TypeAntipac ||
+		messages[3].Event != LeaderEventRemove || messages[3].PlayerID != leaderID {
+		t.Fatalf("promotion messages = %#v", messages)
 	}
 }
 
@@ -91,7 +166,7 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 	leaderID := players.New(TypeAntiPacLeader, "Anti", StatusDisc)
 	wrongLeaderID := players.New(TypeFlagLeader, "Flag", StatusDisc)
 	existingID := players.New(TypeAntipac, "Existing", StatusConn)
-	targetID := players.New(TypeEdible, "Target", StatusConn)
+	targetID := players.New(TypeGhost, "Target", StatusConn)
 	offlineID := players.New(TypeGhost, "Offline", StatusDisc)
 
 	request := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(targetID), LeaderUpdateRequest{Type: new(TypeAntipac)})
@@ -112,16 +187,16 @@ func TestAntiPacLeaderUpdateEligibilityAuthorizationAndUniqueness(t *testing.T) 
 	addLeaderCookie(wrong, wrongLeaderID)
 	wrongResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(wrongResponse, wrong)
-	if wrongResponse.Code != http.StatusForbidden {
-		t.Errorf("wrong capability status = %d, want 403", wrongResponse.Code)
+	if wrongResponse.Code != http.StatusNoContent {
+		t.Errorf("all-leader Ghost status = %d, want 204", wrongResponse.Code)
 	}
 
 	offline := newJSONRequest(t, http.MethodPost, "/api/leader/update/"+string(offlineID), LeaderUpdateRequest{Type: new(TypeAntipac)})
 	addLeaderCookie(offline, leaderID)
 	offlineResponse := httptest.NewRecorder()
 	leaderAPI.ServeHTTP(offlineResponse, offline)
-	if offlineResponse.Code != http.StatusConflict {
-		t.Errorf("offline target status = %d, want 409", offlineResponse.Code)
+	if offlineResponse.Code != http.StatusNoContent {
+		t.Errorf("offline target status = %d, want 204", offlineResponse.Code)
 	}
 
 	missing := newJSONRequest(t, http.MethodPost, "/api/leader/update/NOPE", LeaderUpdateRequest{Type: new(TypeGhost)})
@@ -156,9 +231,9 @@ func TestAllLeadersCanHideNonLeadersRegardlessOfStatus(t *testing.T) {
 		playerType PlayerType
 		status     PlayerStatus
 	}{
-		{"connected Pacman", TypePacman, StatusConn},
+		{"connected Antipac", TypeAntipac, StatusConn},
 		{"disconnected Ghost", TypeGhost, StatusDisc},
-		{"connected Edible", TypeEdible, StatusConn},
+		{"connected Hidden", TypeHidden, StatusConn},
 	}
 
 	for index, leader := range leaders {

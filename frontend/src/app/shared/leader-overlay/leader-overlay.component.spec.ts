@@ -19,8 +19,7 @@ describe('LeaderOverlayComponent', () => {
   const initialPlayers: Player[] = [
     { id: 'ANTI', name: 'Antipac', type: PlayerType.Antipac, status: PlayerStatus.Connected },
     { id: 'GHOST', name: 'Ghost', type: PlayerType.Ghost, status: PlayerStatus.Connected },
-    { id: 'EDIB', name: 'Edible', type: PlayerType.Edible, status: PlayerStatus.Connected },
-    { id: 'PAC', name: 'Pacman', type: PlayerType.Pacman, status: PlayerStatus.Connected },
+    { id: 'HIDE', name: 'Hidden', type: PlayerType.Hidden, status: PlayerStatus.Connected },
     { id: 'OFF', name: 'Offline', type: PlayerType.Ghost, status: PlayerStatus.Disconnected },
   ];
   const leaderSocket = {
@@ -50,7 +49,6 @@ describe('LeaderOverlayComponent', () => {
   const api = {
     getLeaderState: vi.fn(() => of(defaultState)),
     updateLeaderPlayer: vi.fn(() => of(undefined)),
-    hideLeaderPlayer: vi.fn(() => of(undefined)),
     updateFlag: vi.fn(() => of(undefined)),
   };
 
@@ -65,8 +63,6 @@ describe('LeaderOverlayComponent', () => {
     api.getLeaderState.mockReturnValue(of(defaultState));
     api.updateLeaderPlayer.mockReset();
     api.updateLeaderPlayer.mockReturnValue(of(undefined));
-    api.hideLeaderPlayer.mockReset();
-    api.hideLeaderPlayer.mockReturnValue(of(undefined));
     api.updateFlag.mockReset();
     api.updateFlag.mockReturnValue(of(undefined));
 
@@ -96,40 +92,36 @@ describe('LeaderOverlayComponent', () => {
     expect(leaderSocket.start).not.toHaveBeenCalled();
   });
 
-  it('loads state, identifies the leader, and gives generic Leaders hide controls', async () => {
+  it('loads state, identifies the leader, and gives every leader Ghost and Hidden controls', async () => {
     const page = await render(true);
     expect(api.getLeaderState).toHaveBeenCalledOnce();
     expect(leaderSocket.start).toHaveBeenCalledOnce();
     expect(page.querySelector('.leader-overlay__heading')?.textContent).toContain('Lee — Leader');
     expect(page.querySelectorAll('.player-card')).toHaveLength(initialPlayers.length);
-    expect(page.querySelectorAll('.player-type')).toHaveLength(0);
-    expect(page.querySelectorAll('.player-hide')).toHaveLength(initialPlayers.length);
+    expect(page.querySelectorAll('#overlay-type-GHOST-3, #overlay-type-GHOST-0')).toHaveLength(2);
+    expect(page.querySelector('#overlay-type-GHOST-2')).toBeNull();
     expect(page.textContent).not.toContain('read-only');
   });
 
-  it('shows AntiPac controls only for connected Ghost, Edible, and Antipac players', async () => {
+  it('shows Antipac controls for every listed player and enables them only for Ghosts', async () => {
     const page = await render(true, stateForLeader(PlayerType.AntiPacLeader));
-    expect(page.querySelectorAll('.player-types')).toHaveLength(3);
-    expect(page.querySelectorAll('.player-type')).toHaveLength(6);
-    const edible = page
-      .querySelector('#overlay-type-EDIB-3')
-      ?.nextElementSibling?.textContent?.trim();
-    expect(edible).toBe('Ghost');
-    expect(page.querySelector<HTMLInputElement>('#overlay-type-EDIB-3')?.checked).toBe(true);
-    expect(page.querySelector('#overlay-type-PAC-2')).toBeNull();
-    expect(page.querySelector('#overlay-type-OFF-2')).toBeNull();
+    expect(page.querySelectorAll('[id$="-2"]')).toHaveLength(initialPlayers.length);
+    expect(page.querySelector('#overlay-type-GHOST-2')).not.toBeNull();
+    expect(page.querySelector('#overlay-type-OFF-2')).not.toBeNull();
+    expect(page.querySelector<HTMLButtonElement>('#overlay-type-ANTI-2')?.disabled).toBe(true);
+    expect(page.querySelector<HTMLButtonElement>('#overlay-type-GHOST-2')?.disabled).toBe(false);
+    expect(page.querySelector<HTMLButtonElement>('#overlay-type-OFF-2')?.disabled).toBe(false);
   });
 
   it('filters players by a case-insensitive ID search', async () => {
     const page = await render(true);
     const search = page.querySelector<HTMLInputElement>('#leader-player-search');
-    search!.value = 'eDiB';
+    search!.value = 'hIdE';
     search!.dispatchEvent(new Event('input'));
     fixture.detectChanges();
 
     expect(page.querySelectorAll('.player-card')).toHaveLength(1);
-    expect(page.textContent).toContain('Edible');
-    expect(page.textContent).not.toContain('Ghost');
+    expect(page.textContent).toContain('Hidden');
 
     search!.value = 'missing';
     search!.dispatchEvent(new Event('input'));
@@ -141,7 +133,7 @@ describe('LeaderOverlayComponent', () => {
 
   it('optimistically enforces one Antipac', async () => {
     const page = await render(true, stateForLeader(PlayerType.AntiPacLeader));
-    page.querySelector<HTMLInputElement>('#overlay-type-GHOST-2')?.click();
+    page.querySelector<HTMLButtonElement>('#overlay-type-GHOST-2')?.click();
     expect(leaderSocket.players().find((player) => player.id === 'ANTI')?.type).toBe(
       PlayerType.Ghost,
     );
@@ -157,7 +149,7 @@ describe('LeaderOverlayComponent', () => {
       throwError(() => new HttpErrorResponse({ status: 409 })),
     );
     const page = await render(true, stateForLeader(PlayerType.AntiPacLeader));
-    page.querySelector<HTMLInputElement>('#overlay-type-GHOST-2')?.click();
+    page.querySelector<HTMLButtonElement>('#overlay-type-GHOST-2')?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -168,30 +160,30 @@ describe('LeaderOverlayComponent', () => {
       PlayerType.Ghost,
     );
     expect(page.querySelector('.action-status')?.textContent).toContain(
-      'offline or no longer eligible',
+      'no longer has an assignable role',
     );
-    expect(page.querySelector<HTMLInputElement>('#overlay-type-GHOST-3')?.checked).toBe(true);
+    expect(page.querySelector<HTMLButtonElement>('#overlay-type-GHOST-3')?.disabled).toBe(true);
   });
 
   it.each([
-    [PlayerType.Leader, 'PAC'],
+    [PlayerType.Leader, 'GHOST'],
     [PlayerType.AntiPacLeader, 'GHOST'],
     [PlayerType.FlagLeader, 'OFF'],
-  ])('allows leader type %s to hide player %s, including offline players', async (type, playerId) => {
+  ])('allows leader type %s to assign Hidden to player %s, including offline players', async (type, playerId) => {
     const page = await render(true, stateForLeader(type));
-    const button = page.querySelector<HTMLButtonElement>(`#overlay-hide-${playerId}`);
+    const button = page.querySelector<HTMLButtonElement>(`#overlay-type-${playerId}-0`);
 
     expect(button?.disabled).toBe(false);
     button?.click();
     await fixture.whenStable();
 
-    expect(api.hideLeaderPlayer).toHaveBeenCalledWith(playerId);
+    expect(api.updateLeaderPlayer).toHaveBeenCalledWith(playerId, PlayerType.Hidden);
     expect(leaderSocket.players().find((player) => player.id === playerId)?.type).toBe(
       PlayerType.Hidden,
     );
   });
 
-  it('disables Hide for an already hidden player and rolls back a failed hide', async () => {
+  it('disables the current role and rolls back a failed role update', async () => {
     const page = await render(true);
     leaderSocket.players.update((players) =>
       players.map((player) =>
@@ -200,18 +192,18 @@ describe('LeaderOverlayComponent', () => {
     );
     fixture.detectChanges();
 
-    page.querySelector<HTMLButtonElement>('#overlay-hide-GHOST')?.click();
-    expect(api.hideLeaderPlayer).not.toHaveBeenCalled();
+    page.querySelector<HTMLButtonElement>('#overlay-type-GHOST-0')?.click();
+    expect(api.updateLeaderPlayer).not.toHaveBeenCalled();
 
-    api.hideLeaderPlayer.mockReturnValueOnce(
+    api.updateLeaderPlayer.mockReturnValueOnce(
       throwError(() => new HttpErrorResponse({ status: 403 })),
     );
-    page.querySelector<HTMLButtonElement>('#overlay-hide-PAC')?.click();
+    page.querySelector<HTMLButtonElement>('#overlay-type-HIDE-3')?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(leaderSocket.players().find((player) => player.id === 'PAC')?.type).toBe(
-      PlayerType.Pacman,
+    expect(leaderSocket.players().find((player) => player.id === 'HIDE')?.type).toBe(
+      PlayerType.Hidden,
     );
     expect(page.querySelector('.action-status')?.textContent).toContain(
       'does not have this capability',
@@ -247,12 +239,14 @@ describe('LeaderOverlayComponent', () => {
 
   it('reacts live when a specialized leader is downgraded to generic Leader', async () => {
     await render(true, stateForLeader(PlayerType.AntiPacLeader));
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.player-type').length).toBe(6);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[id$="-2"]').length).toBe(
+      initialPlayers.length,
+    );
 
     leaderSocket.leader.set({ ...genericLeader, type: PlayerType.Leader });
     fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.player-type').length).toBe(0);
-    expect((fixture.nativeElement as HTMLElement).querySelectorAll('.player-hide')).toHaveLength(
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[id$="-2"]').length).toBe(0);
+    expect((fixture.nativeElement as HTMLElement).querySelectorAll('[id$="-0"]').length).toBe(
       initialPlayers.length,
     );
   });

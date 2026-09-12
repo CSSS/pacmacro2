@@ -72,40 +72,36 @@
 
             <div class="player-actions">
               <button
-                [id]="'overlay-hide-' + player.id"
+                [id]="'overlay-type-' + player.id + '-3'"
                 type="button"
-                class="button player-hide"
-                [attr.aria-label]="'Hide ' + player.name"
-                [disabled]="player.type === PlayerType.Hidden || isPlayerSaving(player.id)"
-                (click)="hidePlayer(player)"
+                class="button"
+                [attr.aria-label]="'Assign Ghost to ' + player.name"
+                [disabled]="!canAssignType(player, PlayerType.Ghost)"
+                (click)="updateType(player, PlayerType.Ghost)"
               >
-                Hide
+                Ghost
               </button>
-              @if (isAntiPacLeader() && isEligible(player)) {
-                <div class="player-types" role="radiogroup" [attr.aria-label]="'Type for ' + player.name">
-                  <input
-                    [id]="'overlay-type-' + player.id + '-3'"
-                    class="player-type"
-                    type="radio"
-                    [name]="'overlay-type-' + player.id"
-                    [value]="PlayerType.Ghost"
-                    [disabled]="isPlayerSaving(player.id)"
-                    [checked]="isTypeSelected(player, PlayerType.Ghost)"
-                    (change)="updateType(player, PlayerType.Ghost, $event)"
-                  />
-                  <label class="button" [for]="'overlay-type-' + player.id + '-3'">Ghost</label>
-                  <input
-                    [id]="'overlay-type-' + player.id + '-2'"
-                    class="player-type"
-                    type="radio"
-                    [name]="'overlay-type-' + player.id"
-                    [value]="PlayerType.Antipac"
-                    [disabled]="isPlayerSaving(player.id)"
-                    [checked]="isTypeSelected(player, PlayerType.Antipac)"
-                    (change)="updateType(player, PlayerType.Antipac, $event)"
-                  />
-                  <label class="button" [for]="'overlay-type-' + player.id + '-2'">Antipac</label>
-                </div>
+              <button
+                [id]="'overlay-type-' + player.id + '-0'"
+                type="button"
+                class="button"
+                [attr.aria-label]="'Assign Hidden to ' + player.name"
+                [disabled]="!canAssignType(player, PlayerType.Hidden)"
+                (click)="updateType(player, PlayerType.Hidden)"
+              >
+                Hidden
+              </button>
+              @if (isAntiPacLeader()) {
+                <button
+                  [id]="'overlay-type-' + player.id + '-2'"
+                  type="button"
+                  class="button"
+                  [attr.aria-label]="'Assign Antipac to ' + player.name"
+                  [disabled]="!canAssignType(player, PlayerType.Antipac)"
+                  (click)="updateType(player, PlayerType.Antipac)"
+                >
+                  Antipac
+                </button>
               }
             </div>
           </article>
@@ -114,7 +110,7 @@
             {{
               players().length
                 ? 'No players match that ID.'
-                : 'Non-leader players will appear here when they register.'
+                : 'Ghost, Hidden, and Antipac players will appear here when available.'
             }}
           </p>
         }

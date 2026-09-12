@@ -160,6 +160,20 @@ func (playerType PlayerType) Valid() bool {
 	}
 }
 
+// IsLeaderPanelRole reports whether a player belongs in the leader control
+// panel. The panel deliberately only exposes roles leaders can manage.
+func IsLeaderPanelRole(playerType PlayerType) bool {
+	return playerType == TypeGhost || playerType == TypeHidden || playerType == TypeAntipac
+}
+
+// IsVisibleToLeaderPanel applies the capability-specific panel visibility
+// rule. Antipac is only actionable for AntiPac Leaders, so other leaders do
+// not receive it in their panel state.
+func IsVisibleToLeaderPanel(leaderType, playerType PlayerType) bool {
+	return IsLeaderPanelRole(playerType) &&
+		(playerType != TypeAntipac || leaderType == TypeAntiPacLeader)
+}
+
 func TypeString(playerType PlayerType) string {
 	switch playerType {
 	case TypeHidden:

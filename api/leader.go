@@ -319,10 +319,39 @@ func (l *Leader) BroadcastPlayer(player PlayerResponse) {
 				_ = connection.Close()
 				continue
 			}
+			// A newly assigned AntiPac Leader was previously unable to see the
+			// current Antipac. Send it immediately with the self-role event so
+			// their panel does not need to wait for a refresh or future change.
+			if owner.Type == TypeAntiPacLeader {
+				_, visiblePlayers, authorized := l.players.LeaderState(ownerID)
+				if !authorized {
+					delete(l.connections, connection)
+					_ = connection.Close()
+					continue
+				}
+				writeFailed := false
+				for _, visiblePlayer := range visiblePlayers {
+					if visiblePlayer.Type != TypeAntipac {
+						continue
+					}
+					visible := visiblePlayer
+					if !writeLeaderSocketMessage(connection, LeaderSocketMessage{
+						Event: LeaderEventUpsert, Player: &visible,
+					}) {
+						delete(l.connections, connection)
+						_ = connection.Close()
+						writeFailed = true
+						break
+					}
+				}
+				if writeFailed {
+					continue
+				}
+			}
 		}
 
 		var message LeaderSocketMessage
-		if IsLeaderType(player.Type) {
+		if !IsVisibleToLeaderPanel(owner.Type, player.Type) {
 			message = LeaderSocketMessage{Event: LeaderEventRemove, PlayerID: player.ID}
 		} else {
 			upsert := player

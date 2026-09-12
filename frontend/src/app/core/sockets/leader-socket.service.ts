@@ -8,6 +8,7 @@ import {
   LeaderSocketMessage,
   LeaderState,
   Player,
+  PlayerType,
 } from '../game.models';
 import { TransportState, WebSocketService } from './websocket.service';
 
@@ -152,7 +153,10 @@ export class LeaderSocketService extends WebSocketService<LeaderSocketMessage> {
       case 'snapshot':
         return isLeaderSnapshot(message);
       case 'upsert':
-        return isPlayer(message['player']);
+        return (
+          isPlayer(message['player']) &&
+          isVisibleToLeaderPanel(this.leader()?.type, message['player'].type)
+        );
       case 'remove':
         return typeof message['playerId'] === 'string';
       case 'self':
@@ -179,17 +183,16 @@ export class LeaderSocketService extends WebSocketService<LeaderSocketMessage> {
         return;
       }
       case 'upsert':
-        if (isLeaderType(message.player.type)) {
-          this.removePlayer(message.player.id);
-        } else {
-          this.players.update((players) => upsertPlayer(players, message.player));
-        }
+        this.players.update((players) => upsertPlayer(players, message.player));
         return;
       case 'remove':
         this.removePlayer(message.playerId);
         return;
       case 'self':
         this.leader.set(message.leader);
+        this.players.update((players) =>
+          players.filter((player) => isVisibleToLeaderPanel(message.leader.type, player.type)),
+        );
         return;
       case 'flag':
         this.isFlagFound.set(message.isFlagFound);
@@ -233,9 +236,20 @@ function isLeaderSnapshot(value: unknown): value is LeaderState {
     isPlayer(leader) &&
     isLeaderType(leader.type) &&
     Array.isArray(players) &&
-    players.every((player) => isPlayer(player) && !isLeaderType(player.type)) &&
+    players.every(
+      (player) => isPlayer(player) && isVisibleToLeaderPanel(leader.type, player.type),
+    ) &&
     typeof value['isFlagFound'] === 'boolean'
   );
+}
+
+function isLeaderPanelRole(type: PlayerType): boolean {
+  return type === PlayerType.Ghost || type === PlayerType.Hidden || type === PlayerType.Antipac;
+}
+
+function isVisibleToLeaderPanel(leaderType: PlayerType | undefined, playerType: PlayerType): boolean {
+  return isLeaderPanelRole(playerType) &&
+    (playerType !== PlayerType.Antipac || leaderType === PlayerType.AntiPacLeader);
 }
 
 function sortPlayers(players: Player[]): Player[] {
