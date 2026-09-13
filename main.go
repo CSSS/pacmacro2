@@ -34,14 +34,14 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/admin/start       Start the game; only the administrator can do this. Default 20 minute timer. 
 * POST  /api/admin/update/<ID> Update a player's type.
 * POST  /api/admin/kick/<ID>   Remove a player and revoke their session.
-* POST  /api/admin/flag        Update shared flag-found state.
+* POST  /api/admin/flag        Update shared flag-found state and signal Pacman.
 * POST  /api/admin/antipac/empower Cap an active game timer at ten minutes.
 * POST  /api/admin/reset       Reset all non-leader players and game state.
 * WS    /api/admin/ws          Receive authenticated live player status updates.
 * WS    /api/admin/map/ws      View authenticated live game updates without a player.
 * GET   /api/leader/state.json Get the authenticated leader panel state.
 * POST  /api/leader/update/<ID> Update an eligible player as AntiPac Leader.
-* POST  /api/leader/flag       Update flag state as Flag Leader.
+* POST  /api/leader/flag       Capture the flag and empower Pacman as Flag Leader.
 * WS    /api/leader/ws         Receive authenticated live leader-panel updates.
 * GET   /api/player/list.json  List players.
 * GET   /api/player/verify     Verify the authenticated player session.

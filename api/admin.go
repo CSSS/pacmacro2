@@ -112,8 +112,6 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeReset(w, r)
 	case requestPath == "flag":
 		a.ServeFlag(w, r)
-	case requestPath == "antipac/empower":
-		a.ServeEmpowerAntipac(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
 	case strings.HasPrefix(requestPath, "kick/"):
@@ -142,24 +140,7 @@ func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /api/admin/antipac/empower caps the active game timer at ten minutes.
-func (a *Admin) ServeEmpowerAntipac(w http.ResponseWriter, r *http.Request) {
-	if !a.authorizePost(w, r) {
-		return
-	}
-	if a.game == nil {
-		writeJSONError(w, http.StatusServiceUnavailable)
-		return
-	}
-
-	if _, valid := a.game.EmpowerAntipac(); !valid {
-		writeJSONError(w, http.StatusConflict)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// POST /api/admin/flag updates the shared flag-found state.
+// POST /api/admin/flag updates the shared flag-found and Pacman empowerment state.
 func (a *Admin) ServeFlag(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return

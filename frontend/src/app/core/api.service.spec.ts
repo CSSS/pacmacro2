@@ -101,20 +101,13 @@ describe('ApiService', () => {
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
 
-  it('starts and empowers the game with admin credentials', () => {
+  it('starts the game with admin credentials', () => {
     api.startGame().subscribe();
     const startRequest = http.expectOne('/api/admin/start');
     expect(startRequest.request.method).toBe('POST');
     expect(startRequest.request.withCredentials).toBe(true);
     expect(startRequest.request.body).toBeNull();
     startRequest.flush(null, { status: 204, statusText: 'No Content' });
-
-    api.empowerAntipac().subscribe();
-    const empowerRequest = http.expectOne('/api/admin/antipac/empower');
-    expect(empowerRequest.request.method).toBe('POST');
-    expect(empowerRequest.request.withCredentials).toBe(true);
-    expect(empowerRequest.request.body).toBeNull();
-    empowerRequest.flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('updates flag state with admin credentials', () => {

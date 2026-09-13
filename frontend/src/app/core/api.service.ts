@@ -68,12 +68,6 @@ export class ApiService {
     return this.http.post<void>('/api/admin/start', null, { withCredentials: true });
   }
 
-  empowerAntipac(): Observable<void> {
-    return this.http.post<void>('/api/admin/antipac/empower', null, {
-      withCredentials: true,
-    });
-  }
-
   updateAdminFlag(isFlagFound: boolean): Observable<void> {
     return this.http.post<void>('/api/admin/flag', { isFlagFound }, { withCredentials: true });
   }

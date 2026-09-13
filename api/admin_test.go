@@ -213,7 +213,7 @@ func TestAdminStartRequiresPostAndAuthentication(t *testing.T) {
 	}
 }
 
-func TestAdminEmpowerAntipacStartsTenMinuteTimer(t *testing.T) {
+func TestAdminFlagCaptureStartsPacmanEmpowermentTimer(t *testing.T) {
 	players := new(Players)
 	players.Init()
 	game := new(Game)
@@ -225,92 +225,31 @@ func TestAdminEmpowerAntipacStartsTenMinuteTimer(t *testing.T) {
 	game.StartGame()
 	started := game.State()
 
-	request := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
+	request := newJSONRequest(
+		t,
+		http.MethodPost,
+		"/api/admin/flag",
+		AdminFlagRequest{IsFlagFound: new(true)},
+	)
 	request.AddCookie(cookie)
 	response := httptest.NewRecorder()
 	admin.ServeHTTP(response, request)
 
 	if response.Code != http.StatusNoContent {
-		t.Fatalf("empower Antipac status = %d, want %d", response.Code, http.StatusNoContent)
+		t.Fatalf("capture flag status = %d, want %d", response.Code, http.StatusNoContent)
 	}
 	state := game.State()
-	if state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
-		t.Fatalf("game state after empowerment = %#v, want an active deadline", state)
+	if !state.IsFlagFound || state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("game state after flag capture = %#v, want Pacman empowered with an active deadline", state)
 	}
 	if started.StartTime == nil || *state.StartTime != *started.StartTime {
-		t.Errorf("start time after empowerment = %v, want %v", state.StartTime, started.StartTime)
+		t.Errorf("start time after flag capture = %v, want %v", state.StartTime, started.StartTime)
 	}
 	remaining := *state.EndTime - state.ServerTime
 	if remaining > (10*time.Minute).Milliseconds() || remaining < (10*time.Minute-time.Second).Milliseconds() {
-		t.Errorf("empowerment remaining time = %dms, want approximately ten minutes", remaining)
+		t.Errorf("flag capture remaining time = %dms, want approximately ten minutes", remaining)
 	}
 	game.Reset()
-}
-
-func TestAdminEmpowerAntipacNoOpAndInvalidStates(t *testing.T) {
-	players := new(Players)
-	players.Init()
-	game := new(Game)
-	sockets := new(Sockets)
-	sockets.Init(players, game)
-	admin := new(Admin)
-	admin.Init(players, sockets, "top-secret", game)
-	cookie := registerTestAdmin(t, admin, "top-secret")
-
-	request := func() *http.Request {
-		request := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
-		request.AddCookie(cookie)
-		return request
-	}
-
-	beforeStart := httptest.NewRecorder()
-	admin.ServeHTTP(beforeStart, request())
-	if beforeStart.Code != http.StatusConflict {
-		t.Errorf("pre-game empowerment status = %d, want %d", beforeStart.Code, http.StatusConflict)
-	}
-
-	game.Start(5 * time.Minute)
-	before := game.State()
-	noOp := httptest.NewRecorder()
-	admin.ServeHTTP(noOp, request())
-	if noOp.Code != http.StatusNoContent {
-		t.Errorf("under-ten-minute empowerment status = %d, want %d", noOp.Code, http.StatusNoContent)
-	}
-	after := game.State()
-	if before.EndTime == nil || after.EndTime == nil || *before.EndTime != *after.EndTime {
-		t.Errorf("under-ten-minute empowerment changed deadline from %#v to %#v", before, after)
-	}
-
-	game.mutex.RLock()
-	version := game.deadlineVersion
-	game.mutex.RUnlock()
-	game.expire(version)
-	afterEnd := httptest.NewRecorder()
-	admin.ServeHTTP(afterEnd, request())
-	if afterEnd.Code != http.StatusConflict {
-		t.Errorf("post-game empowerment status = %d, want %d", afterEnd.Code, http.StatusConflict)
-	}
-	game.Reset()
-}
-
-func TestAdminEmpowerAntipacRequiresPostAndAuthentication(t *testing.T) {
-	_, admin := newAdminTestState(t, "top-secret")
-
-	unauthorizedRequest := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
-	unauthorizedResponse := httptest.NewRecorder()
-	admin.ServeHTTP(unauthorizedResponse, unauthorizedRequest)
-	if unauthorizedResponse.Code != http.StatusUnauthorized {
-		t.Errorf("unauthorized empowerment status = %d, want %d", unauthorizedResponse.Code, http.StatusUnauthorized)
-	}
-
-	cookie := registerTestAdmin(t, admin, "top-secret")
-	getRequest := httptest.NewRequest(http.MethodGet, "/api/admin/antipac/empower", nil)
-	getRequest.AddCookie(cookie)
-	getResponse := httptest.NewRecorder()
-	admin.ServeHTTP(getResponse, getRequest)
-	if getResponse.Code != http.StatusMethodNotAllowed {
-		t.Errorf("GET empowerment status = %d, want %d", getResponse.Code, http.StatusMethodNotAllowed)
-	}
 }
 
 func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {

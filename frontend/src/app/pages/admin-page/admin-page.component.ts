@@ -57,7 +57,6 @@ export class AdminPageComponent implements OnInit {
   protected readonly bulkUpdating = signal(false);
   protected readonly flagSaving = signal(false);
   protected readonly timerSaving = signal(false);
-  protected readonly timerRemainingSeconds = signal<number | null>(null);
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
@@ -73,9 +72,6 @@ export class AdminPageComponent implements OnInit {
     () => !this.socketReady() || this.mutationInProgress(),
   );
   protected readonly canStartGame = computed(() => this.gameState().phase === 'not_started');
-  protected readonly canEmpowerAntipac = computed(
-    () => this.gameState().phase === 'in_progress' && (this.timerRemainingSeconds() ?? 0) > 10 * 60,
-  );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
 
@@ -197,7 +193,7 @@ export class AdminPageComponent implements OnInit {
     this.status.set(next ? 'Marking the flag as found…' : 'Marking the flag as not found…');
     try {
       await firstValueFrom(this.api.updateAdminFlag(next));
-      this.status.set(next ? 'The flag is marked found.' : 'The flag is marked not found.');
+      this.status.set(next ? 'The flag is captured. Pacman is empowered.' : 'The flag is reset.');
     } catch {
       this.isFlagFound.set(previous);
       this.status.set('Could not update flag state. Register as admin in this browser first.');
@@ -226,26 +222,6 @@ export class AdminPageComponent implements OnInit {
     }
   }
 
-  protected async empowerAntipac(): Promise<void> {
-    if (this.updatesInProgress() || !this.canEmpowerAntipac()) {
-      return;
-    }
-    this.timerSaving.set(true);
-    this.status.set('Setting the game timer to 10 minutes remaining…');
-    try {
-      await firstValueFrom(this.api.empowerAntipac());
-      this.status.set('Antipac is empowered. 10 minutes remaining.');
-    } catch (error) {
-      this.status.set(
-        error instanceof HttpErrorResponse && error.status === 409
-          ? 'Antipac can only be empowered while the game is running.'
-          : 'Could not empower Antipac. Register as admin in this browser first.',
-      );
-    } finally {
-      this.timerSaving.set(false);
-    }
-  }
-
   protected async resetGame(): Promise<void> {
     if (this.updatesInProgress()) {
       return;
@@ -260,7 +236,6 @@ export class AdminPageComponent implements OnInit {
         ),
       );
       this.isFlagFound.set(false);
-      this.timerRemainingSeconds.set(null);
       this.status.set('Reset the game successfully.');
     } catch {
       this.status.set('Could not reset the game. Register as admin in this browser first.');

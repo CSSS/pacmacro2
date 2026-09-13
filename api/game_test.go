@@ -137,31 +137,31 @@ func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 	game.Reset()
 }
 
-func TestGameEmpowerAntipacCapsDeadlineAndPreservesStartTime(t *testing.T) {
+func TestGameFlagCaptureCapsDeadlineAndPreservesStartTime(t *testing.T) {
 	game := new(Game)
 	game.StartGame()
 	started := game.State()
 	before := time.Now().UnixMilli()
-	changed, valid := game.EmpowerAntipac()
+	changed := game.SetFlagFound(true)
 	after := time.Now().UnixMilli()
-	if !changed || !valid {
-		t.Fatalf("Antipac empowerment = (%v, %v), want changed and valid", changed, valid)
+	if !changed {
+		t.Fatal("flag capture reported unchanged")
 	}
 	state := game.State()
-	if state.StartTime == nil || state.EndTime == nil {
-		t.Fatalf("Antipac state = %#v, want a deadline", state)
+	if !state.IsFlagFound || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("flag capture state = %#v, want an empowered flag and deadline", state)
 	}
 	if started.StartTime == nil || *state.StartTime != *started.StartTime {
-		t.Errorf("start time after empowerment = %v, want %v", state.StartTime, started.StartTime)
+		t.Errorf("start time after flag capture = %v, want %v", state.StartTime, started.StartTime)
 	}
 	wantDuration := (10 * time.Minute).Milliseconds()
 	if *state.EndTime < before+wantDuration || *state.EndTime > after+wantDuration {
-		t.Errorf("Antipac deadline = %d, want between %d and %d", *state.EndTime, before+wantDuration, after+wantDuration)
+		t.Errorf("flag capture deadline = %d, want between %d and %d", *state.EndTime, before+wantDuration, after+wantDuration)
 	}
 	game.Reset()
 }
 
-func TestGameEmpowerAntipacIsNoOpAtOrBelowTenMinutes(t *testing.T) {
+func TestGameFlagCaptureDoesNotShortenDeadlineAtOrBelowTenMinutes(t *testing.T) {
 	for _, duration := range []time.Duration{10 * time.Minute, 5 * time.Minute} {
 		game := new(Game)
 		updates := 0
@@ -169,40 +169,49 @@ func TestGameEmpowerAntipacIsNoOpAtOrBelowTenMinutes(t *testing.T) {
 		game.Start(duration)
 		before := game.State()
 
-		changed, valid := game.EmpowerAntipac()
-		if changed || !valid {
-			t.Errorf("duration %v empowerment = (%v, %v), want unchanged and valid", duration, changed, valid)
+		if !game.SetFlagFound(true) {
+			t.Errorf("duration %v flag capture reported unchanged", duration)
 		}
 		after := game.State()
-		if before.StartTime == nil || before.EndTime == nil || after.StartTime == nil || after.EndTime == nil ||
+		if !after.IsFlagFound || before.StartTime == nil || before.EndTime == nil || after.StartTime == nil || after.EndTime == nil ||
 			*before.StartTime != *after.StartTime || *before.EndTime != *after.EndTime {
 			t.Errorf("duration %v changed deadline from %#v to %#v", duration, before, after)
 		}
-		if updates != 1 {
-			t.Errorf("duration %v published %d updates, want only the initial start", duration, updates)
+		if updates != 2 {
+			t.Errorf("duration %v published %d updates, want start and flag capture", duration, updates)
 		}
 		game.Reset()
 	}
 }
 
-func TestGameEmpowerAntipacRejectsInactiveGame(t *testing.T) {
+func TestGameFlagCaptureOutsideActiveGameDoesNotChangeTimer(t *testing.T) {
 	game := new(Game)
-	if changed, valid := game.EmpowerAntipac(); changed || valid {
-		t.Errorf("pre-game empowerment = (%v, %v), want invalid", changed, valid)
+	if !game.SetFlagFound(true) {
+		t.Fatal("pre-game flag capture reported unchanged")
+	}
+	beforeStart := game.State()
+	if !beforeStart.IsFlagFound || beforeStart.Phase != GamePhaseNotStarted || beforeStart.EndTime != nil {
+		t.Errorf("pre-game flag capture state = %#v", beforeStart)
 	}
 
+	game.SetFlagFound(false)
 	game.Start(time.Minute)
 	game.mutex.RLock()
 	version := game.deadlineVersion
 	game.mutex.RUnlock()
 	game.expire(version)
-	if changed, valid := game.EmpowerAntipac(); changed || valid {
-		t.Errorf("post-game empowerment = (%v, %v), want invalid", changed, valid)
+	ended := game.State()
+	if !game.SetFlagFound(true) {
+		t.Fatal("post-game flag capture reported unchanged")
+	}
+	afterEnd := game.State()
+	if !afterEnd.IsFlagFound || afterEnd.Phase != GamePhaseEnded || ended.EndTime == nil || afterEnd.EndTime == nil || *ended.EndTime != *afterEnd.EndTime {
+		t.Errorf("post-game flag capture changed timer from %#v to %#v", ended, afterEnd)
 	}
 	game.Reset()
 }
 
-func TestGameEmpowerAntipacEndsElapsedDeadlineBeforeTimerCallback(t *testing.T) {
+func TestGameFlagCaptureEndsElapsedDeadlineBeforeTimerCallback(t *testing.T) {
 	game := new(Game)
 	updates := make([]GameState, 0, 2)
 	game.AddObserver(func(state GameState) { updates = append(updates, state) })
@@ -212,11 +221,11 @@ func TestGameEmpowerAntipacEndsElapsedDeadlineBeforeTimerCallback(t *testing.T) 
 	game.state.EndTime = timestamp(time.Now().Add(-time.Second).UnixMilli())
 	game.mutex.Unlock()
 
-	if changed, valid := game.EmpowerAntipac(); changed || valid {
-		t.Errorf("elapsed empowerment = (%v, %v), want invalid", changed, valid)
+	if !game.SetFlagFound(true) {
+		t.Fatal("elapsed flag capture reported unchanged")
 	}
 	state := game.State()
-	if state.Phase != GamePhaseEnded || state.StartTime == nil || state.EndTime == nil {
+	if !state.IsFlagFound || state.Phase != GamePhaseEnded || state.StartTime == nil || state.EndTime == nil {
 		t.Errorf("elapsed state = %#v, want ended with retained timestamps", state)
 	}
 	if len(updates) != 2 || updates[1].Phase != GamePhaseEnded {

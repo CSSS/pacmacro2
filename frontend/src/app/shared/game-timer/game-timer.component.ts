@@ -7,7 +7,6 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -56,7 +55,6 @@ export class GameTimerComponent {
 
   readonly state = input.required<GameState>();
   readonly overlay = input(false);
-  readonly remainingSecondsChange = output<number | null>();
 
   protected readonly remainingSeconds = computed(() => {
     const anchor = this.clockAnchor();
@@ -88,11 +86,6 @@ export class GameTimerComponent {
         this.clockAnchor.set({ clientTime, serverTime: state.serverTime });
       });
     });
-    effect(() => {
-      const remaining = this.remainingSeconds();
-      untracked(() => this.remainingSecondsChange.emit(remaining));
-    });
-
     afterNextRender(() => {
       if (!this.browserWindow) {
         return;

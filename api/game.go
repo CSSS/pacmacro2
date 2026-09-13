@@ -140,15 +140,38 @@ func (g *Game) AddObserver(observer func(GameState)) {
 }
 
 func (g *Game) SetFlagFound(isFlagFound bool) bool {
+	const maximumRemaining = 10 * time.Minute
+
 	g.eventMutex.Lock()
 	defer g.eventMutex.Unlock()
 
+	now := time.Now()
 	g.mutex.Lock()
 	if g.state.IsFlagFound == isFlagFound {
 		g.mutex.Unlock()
 		return false
 	}
 	g.state.IsFlagFound = isFlagFound
+	if isFlagFound && g.state.Phase == GamePhaseInProgress && g.state.EndTime != nil {
+		if *g.state.EndTime <= now.UnixMilli() {
+			if g.expiryTimer != nil {
+				g.expiryTimer.Stop()
+			}
+			g.deadlineVersion++
+			g.state.Phase = GamePhaseEnded
+			g.expiryTimer = nil
+		} else if newEndTime := now.Add(maximumRemaining).UnixMilli(); *g.state.EndTime > newEndTime {
+			if g.expiryTimer != nil {
+				g.expiryTimer.Stop()
+			}
+			g.deadlineVersion++
+			version := g.deadlineVersion
+			g.state.EndTime = timestamp(newEndTime)
+			g.expiryTimer = time.AfterFunc(maximumRemaining, func() {
+				g.expire(version)
+			})
+		}
+	}
 	g.mutex.Unlock()
 
 	g.publishState()
@@ -200,53 +223,6 @@ func (g *Game) start(duration time.Duration, requireNotStarted bool) bool {
 
 func (g *Game) StartGame() bool {
 	return g.start(20*time.Minute, true)
-}
-
-// EmpowerAntipac caps an active game's remaining time at ten minutes.
-// The first return value reports whether the deadline changed; the second
-// reports whether an active game made the request valid.
-func (g *Game) EmpowerAntipac() (bool, bool) {
-	const maximumRemaining = 10 * time.Minute
-
-	g.eventMutex.Lock()
-	defer g.eventMutex.Unlock()
-
-	now := time.Now()
-	newEndTime := now.Add(maximumRemaining).UnixMilli()
-
-	g.mutex.Lock()
-	if g.state.Phase != GamePhaseInProgress || g.state.EndTime == nil {
-		g.mutex.Unlock()
-		return false, false
-	}
-	if *g.state.EndTime <= now.UnixMilli() {
-		if g.expiryTimer != nil {
-			g.expiryTimer.Stop()
-		}
-		g.deadlineVersion++
-		g.state.Phase = GamePhaseEnded
-		g.expiryTimer = nil
-		g.mutex.Unlock()
-		g.publishState()
-		return false, false
-	}
-	if *g.state.EndTime <= newEndTime {
-		g.mutex.Unlock()
-		return false, true
-	}
-	if g.expiryTimer != nil {
-		g.expiryTimer.Stop()
-	}
-	g.deadlineVersion++
-	version := g.deadlineVersion
-	g.state.EndTime = timestamp(newEndTime)
-	g.expiryTimer = time.AfterFunc(maximumRemaining, func() {
-		g.expire(version)
-	})
-	g.mutex.Unlock()
-
-	g.publishState()
-	return true, true
 }
 
 func (g *Game) expire(version uint64) {

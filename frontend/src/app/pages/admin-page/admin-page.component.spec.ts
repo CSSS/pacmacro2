@@ -69,7 +69,6 @@ describe('AdminPageComponent', () => {
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
     startGame: vi.fn(() => of(undefined)),
-    empowerAntipac: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
@@ -95,8 +94,6 @@ describe('AdminPageComponent', () => {
     api.resetGame.mockReturnValue(of(undefined));
     api.startGame.mockReset();
     api.startGame.mockReturnValue(of(undefined));
-    api.empowerAntipac.mockReset();
-    api.empowerAntipac.mockReturnValue(of(undefined));
 
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
@@ -213,12 +210,11 @@ describe('AdminPageComponent', () => {
     ).toBe(false);
   });
 
-  it('starts the game and enables empowerment only above ten minutes', async () => {
+  it('starts the game and leaves flag capture available', async () => {
     harness().authenticated.set(true);
     fixture.detectChanges();
 
     expect(findButton('Start Game — 20:00')?.disabled).toBe(false);
-    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(true);
     findButton('Start Game — 20:00')?.click();
     await fixture.whenStable();
     expect(api.startGame).toHaveBeenCalledOnce();
@@ -232,21 +228,7 @@ describe('AdminPageComponent', () => {
     });
     fixture.detectChanges();
     expect(findButton('Start Game — 20:00')?.disabled).toBe(true);
-    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(false);
-
-    findButton('Empower Antipac — 10 Minutes Remaining')?.click();
-    await fixture.whenStable();
-    expect(api.empowerAntipac).toHaveBeenCalledOnce();
-
-    adminSocket.gameState.set({
-      isFlagFound: false,
-      phase: 'in_progress',
-      startTime: 1_000,
-      endTime: 601_000,
-      serverTime: 1_000,
-    });
-    fixture.detectChanges();
-    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(true);
+    expect(findButton('Flag Found')?.disabled).toBe(false);
   });
 
   it('renders the seven ordered type radios in independent groups', () => {
