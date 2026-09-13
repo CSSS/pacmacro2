@@ -68,6 +68,7 @@
           id="game-length"
           type="number"
           step="1"
+          [max]="MAX_GAME_LENGTH_MINUTES"
           required
           value="20"
           [disabled]="updatesInProgress() || !canStartGame()"

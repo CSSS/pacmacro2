@@ -45,6 +45,7 @@ export class AdminPageComponent implements OnInit {
   private readonly adminSocket = inject(AdminSocketService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly browser = inject(PAC_WINDOW);
+  protected readonly MAX_GAME_LENGTH_MINUTES = 60;
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
@@ -75,7 +76,7 @@ export class AdminPageComponent implements OnInit {
   protected readonly gameLengthMinutes = signal(20);
   protected readonly isGameLengthValid = computed(() => {
     const value = this.gameLengthMinutes();
-    return Number.isInteger(value) && value > 0;
+    return Number.isInteger(value) && value > 0 && value <= this.MAX_GAME_LENGTH_MINUTES;
   });
   protected readonly startButtonLabel = computed(
     () => `Start Game — ${this.gameLengthMinutes()}:00`,

@@ -21,7 +21,10 @@ const (
 	GamePhaseEnded      GamePhase = "ended"
 )
 
-const DefaultGameDurationMinutes = 20
+const (
+	DefaultGameDurationMinutes = 20
+	MaxGameDurationMinutes     = 60
+)
 
 type Game struct {
 	// private
@@ -227,6 +230,9 @@ func (g *Game) start(duration time.Duration, requireNotStarted bool) bool {
 func (g *Game) StartGame(durationMinutes int) bool {
 	if durationMinutes <= 0 {
 		return false
+	}
+	if durationMinutes > MaxGameDurationMinutes {
+		durationMinutes = MaxGameDurationMinutes
 	}
 	return g.start(time.Duration(durationMinutes)*time.Minute, true)
 }

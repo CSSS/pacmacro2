@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -201,6 +202,43 @@ func TestAdminStartBeginsTwentyMinuteGame(t *testing.T) {
 		t.Errorf("duplicate start status = %d, want %d", duplicateResponse.Code, http.StatusConflict)
 	}
 	game.Reset()
+}
+
+func TestAdminStartClampsDurationToSixtyMinutes(t *testing.T) {
+	for _, requestedMinutes := range []int{61, 307445735} {
+		t.Run(fmt.Sprintf("requested_%d", requestedMinutes), func(t *testing.T) {
+			players := new(Players)
+			players.Init()
+			game := new(Game)
+			sockets := new(Sockets)
+			sockets.Init(players, game)
+			admin := new(Admin)
+			admin.Init(players, sockets, "top-secret", game)
+			cookie := registerTestAdmin(t, admin, "top-secret")
+
+			request := newJSONRequest(
+				t,
+				http.MethodPost,
+				"/api/admin/start",
+				AdminStartRequest{DurationMinutes: &requestedMinutes},
+			)
+			request.AddCookie(cookie)
+			response := httptest.NewRecorder()
+			admin.ServeHTTP(response, request)
+
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("start game status = %d, want %d", response.Code, http.StatusNoContent)
+			}
+			state := game.State()
+			if state.StartTime == nil || state.EndTime == nil {
+				t.Fatalf("started game state = %#v, want a deadline", state)
+			}
+			if got := *state.EndTime - *state.StartTime; got != (60 * time.Minute).Milliseconds() {
+				t.Errorf("game duration = %dms, want %dms", got, (60 * time.Minute).Milliseconds())
+			}
+			game.Reset()
+		})
+	}
 }
 
 func TestAdminStartRequiresPostAndAuthentication(t *testing.T) {

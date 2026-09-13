@@ -231,6 +231,35 @@ describe('AdminPageComponent', () => {
     expect(findButton('Flag Found')?.disabled).toBe(false);
   });
 
+  it('limits the custom game length to 60 minutes', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
+      '#game-length',
+    );
+    expect(input?.max).toBe('60');
+
+    if (!input) {
+      throw new Error('Expected the game length input.');
+    }
+    input.value = '61';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(findButton('Start Game — 61:00')?.disabled).toBe(true);
+    expect(api.startGame).not.toHaveBeenCalled();
+
+    input.value = '60';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const startButton = findButton('Start Game — 60:00');
+    expect(startButton?.disabled).toBe(false);
+
+    startButton?.click();
+    await fixture.whenStable();
+    expect(api.startGame).toHaveBeenCalledWith(60);
+  });
+
   it('renders the seven ordered type radios in independent groups', () => {
     harness().authenticated.set(true);
     fixture.detectChanges();

@@ -132,8 +132,8 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/admin/start starts a game timer with an optional duration.
 // Accepts an optional JSON body { "durationMinutes": whole minutes }.
-// An empty body, null, or {} starts the 20-minute default. There is no
-// minimum or maximum; any positive whole minutes are accepted.
+// An empty body, null, or {} starts the 20-minute default. Positive values
+// above 60 minutes are reduced to 60 minutes.
 func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
