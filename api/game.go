@@ -156,6 +156,10 @@ func (g *Game) SetFlagFound(isFlagFound bool) bool {
 }
 
 func (g *Game) Start(duration time.Duration) bool {
+	return g.start(duration, false)
+}
+
+func (g *Game) start(duration time.Duration, requireNotStarted bool) bool {
 	if duration <= 0 {
 		return false
 	}
@@ -168,6 +172,14 @@ func (g *Game) Start(duration time.Duration) bool {
 	endTime := now.Add(duration).UnixMilli()
 
 	g.mutex.Lock()
+	phase := g.state.Phase
+	if phase == "" {
+		phase = GamePhaseNotStarted
+	}
+	if requireNotStarted && phase != GamePhaseNotStarted {
+		g.mutex.Unlock()
+		return false
+	}
 	if g.expiryTimer != nil {
 		g.expiryTimer.Stop()
 	}
@@ -186,8 +198,55 @@ func (g *Game) Start(duration time.Duration) bool {
 	return true
 }
 
-func (g *Game) EmpowerAntipac() {
-	g.Start(10 * time.Minute)
+func (g *Game) StartGame() bool {
+	return g.start(20*time.Minute, true)
+}
+
+// EmpowerAntipac caps an active game's remaining time at ten minutes.
+// The first return value reports whether the deadline changed; the second
+// reports whether an active game made the request valid.
+func (g *Game) EmpowerAntipac() (bool, bool) {
+	const maximumRemaining = 10 * time.Minute
+
+	g.eventMutex.Lock()
+	defer g.eventMutex.Unlock()
+
+	now := time.Now()
+	newEndTime := now.Add(maximumRemaining).UnixMilli()
+
+	g.mutex.Lock()
+	if g.state.Phase != GamePhaseInProgress || g.state.EndTime == nil {
+		g.mutex.Unlock()
+		return false, false
+	}
+	if *g.state.EndTime <= now.UnixMilli() {
+		if g.expiryTimer != nil {
+			g.expiryTimer.Stop()
+		}
+		g.deadlineVersion++
+		g.state.Phase = GamePhaseEnded
+		g.expiryTimer = nil
+		g.mutex.Unlock()
+		g.publishState()
+		return false, false
+	}
+	if *g.state.EndTime <= newEndTime {
+		g.mutex.Unlock()
+		return false, true
+	}
+	if g.expiryTimer != nil {
+		g.expiryTimer.Stop()
+	}
+	g.deadlineVersion++
+	version := g.deadlineVersion
+	g.state.EndTime = timestamp(newEndTime)
+	g.expiryTimer = time.AfterFunc(maximumRemaining, func() {
+		g.expire(version)
+	})
+	g.mutex.Unlock()
+
+	g.publishState()
+	return true, true
 }
 
 func (g *Game) expire(version uint64) {

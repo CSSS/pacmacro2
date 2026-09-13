@@ -1,6 +1,15 @@
 import { Service, signal } from '@angular/core';
 import { TransportState, WebSocketService } from './websocket.service';
-import { AdminSocketMessage, isPlayerStatus, isPlayerType, isRecord, Player } from '../game.models';
+import {
+  AdminSocketMessage,
+  GameState,
+  INITIAL_GAME_STATE,
+  isGameState,
+  isPlayerStatus,
+  isPlayerType,
+  isRecord,
+  Player,
+} from '../game.models';
 
 function sortPlayers(players: Player[]): Player[] {
   return [...players].sort(
@@ -32,6 +41,7 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
   readonly players = signal<Player[]>([]);
   readonly isFlagFound = signal(false);
   readonly removedPlayers = new Set<string>();
+  readonly gameState = signal<GameState>({ ...INITIAL_GAME_STATE });
 
   /**
    * Flag that indicates the socket has non-stale data after a connect/reconnect.
@@ -70,7 +80,8 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
         return (
           Array.isArray(msg['players']) &&
           msg['players'].every(isPlayer) &&
-          typeof msg['isFlagFound'] === 'boolean'
+          typeof msg['isFlagFound'] === 'boolean' &&
+          (msg['state'] === undefined || isGameState(msg['state']))
         );
       }
       case 'upsert': {
@@ -81,6 +92,9 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       }
       case 'flag': {
         return typeof msg['isFlagFound'] === 'boolean';
+      }
+      case 'state': {
+        return isGameState(msg['state']);
       }
       default: {
         return false;
@@ -93,6 +107,9 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       case 'snapshot': {
         this.players.set(sortPlayers(msg.players));
         this.isFlagFound.set(msg.isFlagFound);
+        if (msg.state) {
+          this.gameState.set(msg.state);
+        }
         this.isReady.set(true);
         return;
       }
@@ -119,6 +136,12 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       }
       case 'flag': {
         this.isFlagFound.set(msg.isFlagFound);
+        this.gameState.update((state) => ({ ...state, isFlagFound: msg.isFlagFound }));
+        return;
+      }
+      case 'state': {
+        this.gameState.set(msg.state);
+        this.isFlagFound.set(msg.state.isFlagFound);
         return;
       }
       default:

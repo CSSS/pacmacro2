@@ -23,6 +23,7 @@ import {
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
 import { PAC_WINDOW } from '../../core/browser-window.token';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { GameTimerComponent } from '../../shared/game-timer/game-timer.component';
 
 interface AdminLoginModel {
   password: string;
@@ -30,7 +31,7 @@ interface AdminLoginModel {
 
 @Component({
   selector: 'pac-admin-page',
-  imports: [FormField, BrandHeaderComponent],
+  imports: [FormField, BrandHeaderComponent, GameTimerComponent],
   templateUrl: './admin-page.component.html',
   styleUrl: './admin-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +48,7 @@ export class AdminPageComponent implements OnInit {
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
+  protected readonly gameState = this.adminSocket.gameState;
   protected readonly socketReady = this.adminSocket.isReady;
   protected readonly connectionStatus = this.adminSocket.status;
   protected readonly authenticated = signal(false);
@@ -54,6 +56,8 @@ export class AdminPageComponent implements OnInit {
   protected readonly loadingPlayers = signal(false);
   protected readonly bulkUpdating = signal(false);
   protected readonly flagSaving = signal(false);
+  protected readonly timerSaving = signal(false);
+  protected readonly timerRemainingSeconds = signal<number | null>(null);
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
@@ -61,11 +65,16 @@ export class AdminPageComponent implements OnInit {
     () =>
       this.bulkUpdating() ||
       this.flagSaving() ||
+      this.timerSaving() ||
       this.savingPlayerIds().size > 0 ||
       this.loadingPlayers(),
   );
   protected readonly updatesInProgress = computed(
     () => !this.socketReady() || this.mutationInProgress(),
+  );
+  protected readonly canStartGame = computed(() => this.gameState().phase === 'not_started');
+  protected readonly canEmpowerAntipac = computed(
+    () => this.gameState().phase === 'in_progress' && (this.timerRemainingSeconds() ?? 0) > 10 * 60,
   );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
@@ -197,6 +206,46 @@ export class AdminPageComponent implements OnInit {
     }
   }
 
+  protected async startGame(): Promise<void> {
+    if (this.updatesInProgress() || !this.canStartGame()) {
+      return;
+    }
+    this.timerSaving.set(true);
+    this.status.set('Starting the 20-minute game timer…');
+    try {
+      await firstValueFrom(this.api.startGame());
+      this.status.set('The game timer started.');
+    } catch (error) {
+      this.status.set(
+        error instanceof HttpErrorResponse && error.status === 409
+          ? 'The game has already started. Reset it before starting again.'
+          : 'Could not start the game timer. Register as admin in this browser first.',
+      );
+    } finally {
+      this.timerSaving.set(false);
+    }
+  }
+
+  protected async empowerAntipac(): Promise<void> {
+    if (this.updatesInProgress() || !this.canEmpowerAntipac()) {
+      return;
+    }
+    this.timerSaving.set(true);
+    this.status.set('Setting the game timer to 10 minutes remaining…');
+    try {
+      await firstValueFrom(this.api.empowerAntipac());
+      this.status.set('Antipac is empowered. 10 minutes remaining.');
+    } catch (error) {
+      this.status.set(
+        error instanceof HttpErrorResponse && error.status === 409
+          ? 'Antipac can only be empowered while the game is running.'
+          : 'Could not empower Antipac. Register as admin in this browser first.',
+      );
+    } finally {
+      this.timerSaving.set(false);
+    }
+  }
+
   protected async resetGame(): Promise<void> {
     if (this.updatesInProgress()) {
       return;
@@ -211,6 +260,7 @@ export class AdminPageComponent implements OnInit {
         ),
       );
       this.isFlagFound.set(false);
+      this.timerRemainingSeconds.set(null);
       this.status.set('Reset the game successfully.');
     } catch {
       this.status.set('Could not reset the game. Register as admin in this browser first.');

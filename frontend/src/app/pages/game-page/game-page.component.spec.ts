@@ -19,7 +19,13 @@ describe('GamePageComponent leader overlay', () => {
     max: { latitude: 49.28, longitude: -122.9 },
     width: 32,
     height: 32,
-    isFlagFound: false,
+    state: {
+      isFlagFound: false,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    },
   };
   const gameSocket = {
     players: signal({
@@ -35,6 +41,7 @@ describe('GamePageComponent leader overlay', () => {
     }),
     status: signal('Connected.'),
     isFlagFound: signal(false),
+    gameState: signal(map.state),
     start: vi.fn(),
     stop: vi.fn(),
     resume: vi.fn(),
@@ -114,6 +121,14 @@ describe('GamePageComponent leader overlay', () => {
     },
   );
 
+  it.each([PlayerType.Ghost, PlayerType.Leader])(
+    'shows the shared timer for player type %s',
+    async (playerType) => {
+      const page = await render(playerType);
+      expect(page.querySelector('pac-game-timer')).not.toBeNull();
+    },
+  );
+
   it.each([
     PlayerType.Ghost,
     PlayerType.Antipac,
@@ -131,7 +146,7 @@ describe('GamePageComponent leader overlay', () => {
     expect(api.verifyPlayer).toHaveBeenCalledOnce();
     expect(wakeLock.initialize).toHaveBeenCalledOnce();
     expect(api.getMap).toHaveBeenCalledOnce();
-    expect(gameSocket.setInitialState).toHaveBeenCalledWith(map);
+    expect(gameSocket.setInitialState).toHaveBeenCalledWith(map.state);
     expect(gameSocket.start).toHaveBeenCalledWith(
       'SELF',
       expect.any(Function),

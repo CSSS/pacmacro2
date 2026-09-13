@@ -27,11 +27,30 @@
       <h1>Admin</h1>
     </header>
 
+    <pac-game-timer
+      [state]="gameState()"
+      (remainingSecondsChange)="timerRemainingSeconds.set($event)"
+    />
+
     <p class="admin-connection-status" role="status">Websocket: {{ connectionStatus() }}</p>
     <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
 
     <section class="admin-actions" aria-label="Admin actions">
       <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
+      <button
+        type="button"
+        [disabled]="updatesInProgress() || !canStartGame()"
+        (click)="startGame()"
+      >
+        Start Game — 20:00
+      </button>
+      <button
+        type="button"
+        [disabled]="updatesInProgress() || !canEmpowerAntipac()"
+        (click)="empowerAntipac()"
+      >
+        Empower Antipac — 10 Minutes Remaining
+      </button>
       <button
         type="button"
         class="flag-control"

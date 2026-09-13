@@ -242,6 +242,36 @@ describe('sockets/AdminSocketService', () => {
     expect(service.isFlagFound()).toBe(true);
   });
 
+  it('applies full game state from snapshots and live state events', () => {
+    socket.message({
+      event: 'snapshot',
+      isFlagFound: false,
+      players: [],
+      state: {
+        isFlagFound: false,
+        phase: 'in_progress',
+        startTime: 1_000,
+        endTime: 1_201_000,
+        serverTime: 2_000,
+      },
+    });
+    expect(service.gameState().endTime).toBe(1_201_000);
+
+    socket.message({
+      event: 'state',
+      state: {
+        isFlagFound: true,
+        phase: 'ended',
+        startTime: 1_000,
+        endTime: 1_201_000,
+        serverTime: 1_201_000,
+      },
+    });
+
+    expect(service.gameState().phase).toBe('ended');
+    expect(service.isFlagFound()).toBe(true);
+  });
+
   it('rejects malformed frames, unknown events, and snapshots missing flag state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     socket.message({ event: 'snapshot', isFlagFound: true, players: [] });

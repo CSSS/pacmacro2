@@ -8,7 +8,7 @@ export interface MapInfo {
   max: Coordinate;
   width: number;
   height: number;
-  isFlagFound: boolean;
+  state: GameState;
 }
 
 export interface Plot {
@@ -41,10 +41,11 @@ export interface Player {
 }
 
 export type AdminSocketMessage =
-  | { event: 'snapshot'; players: Player[]; isFlagFound: boolean }
+  | { event: 'snapshot'; players: Player[]; isFlagFound: boolean; state?: GameState }
   | { event: 'upsert'; player: Player }
   | { event: 'remove'; playerId: string }
-  | { event: 'flag'; isFlagFound: boolean };
+  | { event: 'flag'; isFlagFound: boolean }
+  | { event: 'state'; state: GameState };
 
 export interface LivePlayer {
   coordinate: Coordinate;
@@ -59,9 +60,23 @@ export interface SocketMessage {
 
 export type GameSocketMessage = SocketMessage | Coordinate;
 
+export type GamePhase = 'not_started' | 'in_progress' | 'ended';
+
 export interface GameState {
   isFlagFound: boolean;
+  phase: GamePhase;
+  startTime: number | null;
+  endTime: number | null;
+  serverTime: number;
 }
+
+export const INITIAL_GAME_STATE: GameState = {
+  isFlagFound: false,
+  phase: 'not_started',
+  startTime: null,
+  endTime: null,
+  serverTime: 0,
+};
 
 export interface LeaderState {
   leader: Player;
@@ -140,4 +155,19 @@ export function isLeaderType(value: PlayerType): boolean {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+export function isGameState(value: unknown): value is GameState {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value['isFlagFound'] === 'boolean' &&
+    (value['phase'] === 'not_started' ||
+      value['phase'] === 'in_progress' ||
+      value['phase'] === 'ended') &&
+    (value['startTime'] === null || Number.isFinite(value['startTime'])) &&
+    (value['endTime'] === null || Number.isFinite(value['endTime'])) &&
+    Number.isFinite(value['serverTime'])
+  );
 }

@@ -7,6 +7,8 @@
     <h1>PacMacro</h1>
   }
 
+  <pac-game-timer [state]="socket.gameState()" />
+
   <div class="game-page__status" role="status" aria-live="polite">
     <p>{{ pageStatus() }}</p>
     <p>{{ socket.status() }}</p>

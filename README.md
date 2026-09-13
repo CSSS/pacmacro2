@@ -103,10 +103,12 @@ leaving connected players' live coordinates intact.
 
 - `GET /api/player/verify` returns `204 No Content` when the `id` cookie belongs
   to a current player (including a leader), otherwise `401 Unauthorized`.
-- `POST /api/admin/reset` resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
+- `POST /api/admin/start` starts a twenty-minute game timer for the authenticated Admin. It returns `409 Conflict` if the game has already started and has not been reset.
+- `POST /api/admin/reset` cancels the game timer, resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
 - `POST /api/admin/kick/<ID>` removes a player, clears their map state, and closes
   active game sockets with policy code `1008`. The removed player must register again.
+- `POST /api/admin/antipac/empower` reduces an active game's remaining time to ten minutes for the authenticated Admin. If ten minutes or less remain, it leaves the timer unchanged. It returns `409 Conflict` when the game is not active.
 - `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie; `players` contains Ghost and Hidden roles, plus Antipac only for an AntiPac Leader.
 - `POST /api/leader/update/<ID>` accepts `{ "type": 0|3 }` from any Leader for a
   Ghost, Hidden, or Antipac target (regardless of connection status). `{ "type": 2 }`
@@ -115,7 +117,4 @@ leaving connected players' live coordinates intact.
 - `POST /api/leader/flag` accepts `{ "isFlagFound": boolean }` from a Flag Leader.
 - `WS /api/leader/ws` provides leader snapshots and live player, self-role, flag, and revocation events.
 
-Game and admin-map sockets send `state` messages whose `data` is
-`{ "isFlagFound": boolean }`, including one in every initial snapshot.
-The Admin control socket includes `isFlagFound` in its `snapshot` event and
-sends `upsert`, `remove`, and `flag` events as roster and shared state change.
+Game and admin-map sockets send `state` messages whose `data` contains `isFlagFound`, `phase`, `startTime`, `endTime`, and `serverTime`, including one in every initial snapshot. The Admin control socket includes the same game state in its `snapshot` event and sends `upsert`, `remove`, and `state` events as roster and shared state change, while retaining the existing `isFlagFound` and `flag` messages for compatibility. All player, leader, and Admin views display the synchronized countdown.

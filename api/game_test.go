@@ -119,17 +119,109 @@ func TestGameNewDeadlineIgnoresOldExpiry(t *testing.T) {
 	game.Reset()
 }
 
-func TestGameEmpowerAntipacUsesTenMinuteDeadline(t *testing.T) {
+func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 	game := new(Game)
-	game.EmpowerAntipac()
+	if !game.StartGame() {
+		t.Fatal("initial game start was rejected")
+	}
+	state := game.State()
+	if state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("started game state = %#v, want a deadline", state)
+	}
+	if got := *state.EndTime - *state.StartTime; got != (20 * time.Minute).Milliseconds() {
+		t.Errorf("game duration = %dms, want %dms", got, (20 * time.Minute).Milliseconds())
+	}
+	if game.StartGame() {
+		t.Error("duplicate game start was accepted")
+	}
+	game.Reset()
+}
+
+func TestGameEmpowerAntipacCapsDeadlineAndPreservesStartTime(t *testing.T) {
+	game := new(Game)
+	game.StartGame()
+	started := game.State()
+	before := time.Now().UnixMilli()
+	changed, valid := game.EmpowerAntipac()
+	after := time.Now().UnixMilli()
+	if !changed || !valid {
+		t.Fatalf("Antipac empowerment = (%v, %v), want changed and valid", changed, valid)
+	}
 	state := game.State()
 	if state.StartTime == nil || state.EndTime == nil {
 		t.Fatalf("Antipac state = %#v, want a deadline", state)
 	}
-	if got := *state.EndTime - *state.StartTime; got != (10 * time.Minute).Milliseconds() {
-		t.Errorf("Antipac duration = %dms, want %dms", got, (10 * time.Minute).Milliseconds())
+	if started.StartTime == nil || *state.StartTime != *started.StartTime {
+		t.Errorf("start time after empowerment = %v, want %v", state.StartTime, started.StartTime)
+	}
+	wantDuration := (10 * time.Minute).Milliseconds()
+	if *state.EndTime < before+wantDuration || *state.EndTime > after+wantDuration {
+		t.Errorf("Antipac deadline = %d, want between %d and %d", *state.EndTime, before+wantDuration, after+wantDuration)
 	}
 	game.Reset()
+}
+
+func TestGameEmpowerAntipacIsNoOpAtOrBelowTenMinutes(t *testing.T) {
+	for _, duration := range []time.Duration{10 * time.Minute, 5 * time.Minute} {
+		game := new(Game)
+		updates := 0
+		game.AddObserver(func(GameState) { updates++ })
+		game.Start(duration)
+		before := game.State()
+
+		changed, valid := game.EmpowerAntipac()
+		if changed || !valid {
+			t.Errorf("duration %v empowerment = (%v, %v), want unchanged and valid", duration, changed, valid)
+		}
+		after := game.State()
+		if before.StartTime == nil || before.EndTime == nil || after.StartTime == nil || after.EndTime == nil ||
+			*before.StartTime != *after.StartTime || *before.EndTime != *after.EndTime {
+			t.Errorf("duration %v changed deadline from %#v to %#v", duration, before, after)
+		}
+		if updates != 1 {
+			t.Errorf("duration %v published %d updates, want only the initial start", duration, updates)
+		}
+		game.Reset()
+	}
+}
+
+func TestGameEmpowerAntipacRejectsInactiveGame(t *testing.T) {
+	game := new(Game)
+	if changed, valid := game.EmpowerAntipac(); changed || valid {
+		t.Errorf("pre-game empowerment = (%v, %v), want invalid", changed, valid)
+	}
+
+	game.Start(time.Minute)
+	game.mutex.RLock()
+	version := game.deadlineVersion
+	game.mutex.RUnlock()
+	game.expire(version)
+	if changed, valid := game.EmpowerAntipac(); changed || valid {
+		t.Errorf("post-game empowerment = (%v, %v), want invalid", changed, valid)
+	}
+	game.Reset()
+}
+
+func TestGameEmpowerAntipacEndsElapsedDeadlineBeforeTimerCallback(t *testing.T) {
+	game := new(Game)
+	updates := make([]GameState, 0, 2)
+	game.AddObserver(func(state GameState) { updates = append(updates, state) })
+	game.Start(time.Minute)
+
+	game.mutex.Lock()
+	game.state.EndTime = timestamp(time.Now().Add(-time.Second).UnixMilli())
+	game.mutex.Unlock()
+
+	if changed, valid := game.EmpowerAntipac(); changed || valid {
+		t.Errorf("elapsed empowerment = (%v, %v), want invalid", changed, valid)
+	}
+	state := game.State()
+	if state.Phase != GamePhaseEnded || state.StartTime == nil || state.EndTime == nil {
+		t.Errorf("elapsed state = %#v, want ended with retained timestamps", state)
+	}
+	if len(updates) != 2 || updates[1].Phase != GamePhaseEnded {
+		t.Errorf("elapsed updates = %#v, want start followed by ended", updates)
+	}
 }
 
 func TestGameResetClearsStateAndDeadline(t *testing.T) {

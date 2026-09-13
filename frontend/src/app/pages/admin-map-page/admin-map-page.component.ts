@@ -14,10 +14,11 @@ import { GameSocketService } from '../../core/sockets/game-socket.service';
 import { MapInfo } from '../../core/game.models';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { GameTimerComponent } from '../../shared/game-timer/game-timer.component';
 
 @Component({
   selector: 'pac-admin-map-page',
-  imports: [BrandHeaderComponent, GameCanvasComponent],
+  imports: [BrandHeaderComponent, GameCanvasComponent, GameTimerComponent],
   providers: [GameSocketService],
   templateUrl: './admin-map-page.component.html',
   styleUrl: './admin-map-page.component.scss',
@@ -49,7 +50,7 @@ export class AdminMapPageComponent {
     try {
       const map = await firstValueFrom(this.api.getMap());
       this.map.set(map);
-      this.socket.setInitialState(map);
+      this.socket.setInitialState(map.state);
     } catch {
       this.pageStatus.set(
         'Could not load the PacMacro map. Check the API connection and try again.',

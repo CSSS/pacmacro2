@@ -12,6 +12,7 @@ const (
 	AdminEventUpsert   = "upsert"
 	AdminEventRemove   = "remove"
 	AdminEventFlag     = "flag"
+	AdminEventState    = "state"
 )
 
 type AdminSocketMessage struct {
@@ -20,6 +21,7 @@ type AdminSocketMessage struct {
 	Player      *PlayerResponse  `json:"player,omitempty"`
 	PlayerID    PlayerID         `json:"playerId,omitempty"`
 	IsFlagFound *bool            `json:"isFlagFound,omitempty"`
+	State       *GameState       `json:"state,omitempty"`
 }
 
 type adminSocketConnection interface {
@@ -82,13 +84,17 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 
 	a.connections[connection] = struct{}{}
 	flagFound := false
+	var state *GameState
 	if a.game != nil {
-		flagFound = a.game.State().IsFlagFound
+		gameState := a.game.State()
+		flagFound = gameState.IsFlagFound
+		state = &gameState
 	}
 	message := AdminSocketMessage{
 		Event:       AdminEventSnapshot,
 		Players:     a.players.List(),
 		IsFlagFound: &flagFound,
+		State:       state,
 	}
 	if !writeAdminSocketMessage(connection, message) {
 		delete(a.connections, connection)
@@ -96,6 +102,13 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 		return false
 	}
 	return true
+}
+
+func (a *Admin) BroadcastGameState(state GameState) {
+	a.broadcastSocketMessage(AdminSocketMessage{
+		Event: AdminEventState,
+		State: &state,
+	})
 }
 
 func (a *Admin) BroadcastFlagState(state GameState) {

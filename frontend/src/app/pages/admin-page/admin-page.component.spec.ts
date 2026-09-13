@@ -4,12 +4,19 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject, throwError } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
-import { Player, PlayerStatus, PlayerType } from '../../core/game.models';
+import { GameState, Player, PlayerStatus, PlayerType } from '../../core/game.models';
 import { AdminSocketService } from '../../core/sockets/admin-socket.service';
 import { AdminPageComponent } from './admin-page.component';
 
 describe('AdminPageComponent', () => {
   let fixture: ComponentFixture<AdminPageComponent>;
+  const initialGameState: GameState = {
+    isFlagFound: false,
+    phase: 'not_started',
+    startTime: null,
+    endTime: null,
+    serverTime: 1_000,
+  };
   const initialPlayers: Player[] = [
     {
       id: 'AAAA',
@@ -39,6 +46,7 @@ describe('AdminPageComponent', () => {
   const adminSocket = {
     players: signal<Player[]>(initialPlayers.map((player) => ({ ...player }))),
     isFlagFound: signal(false),
+    gameState: signal<GameState>({ ...initialGameState }),
     isReady: signal(true),
     status: signal('Connected'),
     removedPlayers: new Set<string>(),
@@ -60,11 +68,14 @@ describe('AdminPageComponent', () => {
     registerAdmin: vi.fn(() => of(void 0)),
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
+    startGame: vi.fn(() => of(undefined)),
+    empowerAntipac: vi.fn(() => of(undefined)),
   };
 
   beforeEach(async () => {
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
+    adminSocket.gameState.set({ ...initialGameState });
     adminSocket.isReady.set(true);
     adminSocket.removedPlayers.clear();
     adminSocket.connect.mockClear();
@@ -82,6 +93,10 @@ describe('AdminPageComponent', () => {
     api.updateAdminFlag.mockReturnValue(of(undefined));
     api.resetGame.mockReset();
     api.resetGame.mockReturnValue(of(undefined));
+    api.startGame.mockReset();
+    api.startGame.mockReturnValue(of(undefined));
+    api.empowerAntipac.mockReset();
+    api.empowerAntipac.mockReturnValue(of(undefined));
 
     await TestBed.configureTestingModule({
       imports: [AdminPageComponent],
@@ -155,6 +170,7 @@ describe('AdminPageComponent', () => {
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('.auth-card')).toBeNull();
     expect(page.querySelector('.player-list')).not.toBeNull();
+    expect(page.querySelector('pac-game-timer')).not.toBeNull();
     expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 
@@ -178,6 +194,7 @@ describe('AdminPageComponent', () => {
 
     expect(findButton('Flag Found')?.disabled).toBe(true);
     expect(findButton('Reset Game')?.disabled).toBe(true);
+    expect(findButton('Start Game — 20:00')?.disabled).toBe(true);
     expect(
       (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
         ?.disabled,
@@ -188,10 +205,47 @@ describe('AdminPageComponent', () => {
 
     expect(findButton('Flag Found')?.disabled).toBe(false);
     expect(findButton('Reset Game')?.disabled).toBe(false);
+    expect(findButton('Start Game — 20:00')?.disabled).toBe(false);
     expect(
       (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#type-AAAA-1')
         ?.disabled,
     ).toBe(false);
+  });
+
+  it('starts the game and enables empowerment only above ten minutes', async () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    expect(findButton('Start Game — 20:00')?.disabled).toBe(false);
+    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(true);
+    findButton('Start Game — 20:00')?.click();
+    await fixture.whenStable();
+    expect(api.startGame).toHaveBeenCalledOnce();
+
+    adminSocket.gameState.set({
+      isFlagFound: false,
+      phase: 'in_progress',
+      startTime: 1_000,
+      endTime: 1_201_000,
+      serverTime: 1_000,
+    });
+    fixture.detectChanges();
+    expect(findButton('Start Game — 20:00')?.disabled).toBe(true);
+    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(false);
+
+    findButton('Empower Antipac — 10 Minutes Remaining')?.click();
+    await fixture.whenStable();
+    expect(api.empowerAntipac).toHaveBeenCalledOnce();
+
+    adminSocket.gameState.set({
+      isFlagFound: false,
+      phase: 'in_progress',
+      startTime: 1_000,
+      endTime: 601_000,
+      serverTime: 1_000,
+    });
+    fixture.detectChanges();
+    expect(findButton('Empower Antipac — 10 Minutes Remaining')?.disabled).toBe(true);
   });
 
   it('renders the seven ordered type radios in independent groups', () => {

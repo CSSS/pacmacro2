@@ -49,6 +49,7 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string, games 
 	if len(games) > 0 {
 		a.game = games[0]
 		a.game.AddObserver(a.BroadcastFlagState)
+		a.game.AddObserver(a.BroadcastGameState)
 	}
 	players.AddObserver(a.BroadcastPlayer)
 	players.AddRemovalObserver(a.BroadcastRemoval)
@@ -105,10 +106,14 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeSocket(w, r)
 	case requestPath == "map/ws":
 		a.ServeMapSocket(w, r)
+	case requestPath == "start":
+		a.ServeStart(w, r)
 	case requestPath == "reset":
 		a.ServeReset(w, r)
 	case requestPath == "flag":
 		a.ServeFlag(w, r)
+	case requestPath == "antipac/empower":
+		a.ServeEmpowerAntipac(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
 	case strings.HasPrefix(requestPath, "kick/"):
@@ -118,6 +123,40 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
+}
+
+// POST /api/admin/start starts the twenty-minute game timer.
+func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+	if a.game == nil {
+		writeJSONError(w, http.StatusServiceUnavailable)
+		return
+	}
+
+	if !a.game.StartGame() {
+		writeJSONError(w, http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/admin/antipac/empower caps the active game timer at ten minutes.
+func (a *Admin) ServeEmpowerAntipac(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+	if a.game == nil {
+		writeJSONError(w, http.StatusServiceUnavailable)
+		return
+	}
+
+	if _, valid := a.game.EmpowerAntipac(); !valid {
+		writeJSONError(w, http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // POST /api/admin/flag updates the shared flag-found state.
@@ -151,7 +190,7 @@ func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
 	a.sockets.ResetNonLeaders()
 	a.sockets.ClearOfflineLocations()
 	if a.game != nil {
-		a.game.SetFlagFound(false)
+		a.game.Reset()
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

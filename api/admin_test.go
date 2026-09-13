@@ -141,6 +141,178 @@ func TestAdminRegistrationRejectsWrongPasswordAndAllowsSessionRenewal(t *testing
 	}
 }
 
+func TestAdminStartBeginsTwentyMinuteGame(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	connection := new(recordingAdminConnection)
+	if !admin.addConnection(connection) {
+		t.Fatal("add admin socket connection")
+	}
+	defer admin.removeConnection(connection)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("start game status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	state := game.State()
+	if state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("game state after start = %#v, want an active deadline", state)
+	}
+	if got := *state.EndTime - *state.StartTime; got != (20 * time.Minute).Milliseconds() {
+		t.Errorf("game duration = %dms, want %dms", got, (20 * time.Minute).Milliseconds())
+	}
+	if len(connection.messages) != 3 {
+		t.Fatalf("Admin socket messages = %d, want snapshot, flag, and state", len(connection.messages))
+	}
+	var stateUpdate AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[2], &stateUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if stateUpdate.Event != AdminEventState || stateUpdate.State == nil ||
+		stateUpdate.State.Phase != GamePhaseInProgress {
+		t.Errorf("Admin timer socket update = %#v", stateUpdate)
+	}
+
+	duplicate := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	duplicate.AddCookie(cookie)
+	duplicateResponse := httptest.NewRecorder()
+	admin.ServeHTTP(duplicateResponse, duplicate)
+	if duplicateResponse.Code != http.StatusConflict {
+		t.Errorf("duplicate start status = %d, want %d", duplicateResponse.Code, http.StatusConflict)
+	}
+	game.Reset()
+}
+
+func TestAdminStartRequiresPostAndAuthentication(t *testing.T) {
+	_, admin := newAdminTestState(t, "top-secret")
+
+	unauthorizedRequest := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	unauthorizedResponse := httptest.NewRecorder()
+	admin.ServeHTTP(unauthorizedResponse, unauthorizedRequest)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized start status = %d, want %d", unauthorizedResponse.Code, http.StatusUnauthorized)
+	}
+
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	getRequest := httptest.NewRequest(http.MethodGet, "/api/admin/start", nil)
+	getRequest.AddCookie(cookie)
+	getResponse := httptest.NewRecorder()
+	admin.ServeHTTP(getResponse, getRequest)
+	if getResponse.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET start status = %d, want %d", getResponse.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestAdminEmpowerAntipacStartsTenMinuteTimer(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	game.StartGame()
+	started := game.State()
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("empower Antipac status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	state := game.State()
+	if state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("game state after empowerment = %#v, want an active deadline", state)
+	}
+	if started.StartTime == nil || *state.StartTime != *started.StartTime {
+		t.Errorf("start time after empowerment = %v, want %v", state.StartTime, started.StartTime)
+	}
+	remaining := *state.EndTime - state.ServerTime
+	if remaining > (10*time.Minute).Milliseconds() || remaining < (10*time.Minute-time.Second).Milliseconds() {
+		t.Errorf("empowerment remaining time = %dms, want approximately ten minutes", remaining)
+	}
+	game.Reset()
+}
+
+func TestAdminEmpowerAntipacNoOpAndInvalidStates(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+
+	request := func() *http.Request {
+		request := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
+		request.AddCookie(cookie)
+		return request
+	}
+
+	beforeStart := httptest.NewRecorder()
+	admin.ServeHTTP(beforeStart, request())
+	if beforeStart.Code != http.StatusConflict {
+		t.Errorf("pre-game empowerment status = %d, want %d", beforeStart.Code, http.StatusConflict)
+	}
+
+	game.Start(5 * time.Minute)
+	before := game.State()
+	noOp := httptest.NewRecorder()
+	admin.ServeHTTP(noOp, request())
+	if noOp.Code != http.StatusNoContent {
+		t.Errorf("under-ten-minute empowerment status = %d, want %d", noOp.Code, http.StatusNoContent)
+	}
+	after := game.State()
+	if before.EndTime == nil || after.EndTime == nil || *before.EndTime != *after.EndTime {
+		t.Errorf("under-ten-minute empowerment changed deadline from %#v to %#v", before, after)
+	}
+
+	game.mutex.RLock()
+	version := game.deadlineVersion
+	game.mutex.RUnlock()
+	game.expire(version)
+	afterEnd := httptest.NewRecorder()
+	admin.ServeHTTP(afterEnd, request())
+	if afterEnd.Code != http.StatusConflict {
+		t.Errorf("post-game empowerment status = %d, want %d", afterEnd.Code, http.StatusConflict)
+	}
+	game.Reset()
+}
+
+func TestAdminEmpowerAntipacRequiresPostAndAuthentication(t *testing.T) {
+	_, admin := newAdminTestState(t, "top-secret")
+
+	unauthorizedRequest := httptest.NewRequest(http.MethodPost, "/api/admin/antipac/empower", nil)
+	unauthorizedResponse := httptest.NewRecorder()
+	admin.ServeHTTP(unauthorizedResponse, unauthorizedRequest)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized empowerment status = %d, want %d", unauthorizedResponse.Code, http.StatusUnauthorized)
+	}
+
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	getRequest := httptest.NewRequest(http.MethodGet, "/api/admin/antipac/empower", nil)
+	getRequest.AddCookie(cookie)
+	getResponse := httptest.NewRecorder()
+	admin.ServeHTTP(getResponse, getRequest)
+	if getResponse.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET empowerment status = %d, want %d", getResponse.Code, http.StatusMethodNotAllowed)
+	}
+}
+
 func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
@@ -190,6 +362,7 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 		players.New(playerType, TypeString(playerType), StatusDisc)
 	}
 	game.SetFlagFound(true)
+	game.StartGame()
 
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
 	request.AddCookie(cookie)
@@ -198,8 +371,9 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("reset status = %d, want 204", response.Code)
 	}
-	if game.State().IsFlagFound {
-		t.Error("flag remains found after reset")
+	state := game.State()
+	if state.IsFlagFound || state.Phase != GamePhaseNotStarted || state.StartTime != nil || state.EndTime != nil {
+		t.Errorf("game state after reset = %#v, want initial state", state)
 	}
 	for _, player := range players.List() {
 		if !IsLeaderType(player.Type) && player.Type != TypeGhost {
@@ -228,7 +402,7 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 		t.Fatal(err)
 	}
 	if snapshot.Event != AdminEventSnapshot || snapshot.IsFlagFound == nil ||
-		*snapshot.IsFlagFound {
+		*snapshot.IsFlagFound || snapshot.State == nil || snapshot.State.Phase != GamePhaseNotStarted {
 		t.Fatalf("initial Admin snapshot = %#v", snapshot)
 	}
 
@@ -247,8 +421,8 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	if !game.State().IsFlagFound {
 		t.Error("Admin flag update did not change shared game state")
 	}
-	if len(connection.messages) != 2 {
-		t.Fatalf("Admin socket messages = %d, want snapshot and flag", len(connection.messages))
+	if len(connection.messages) != 3 {
+		t.Fatalf("Admin socket messages = %d, want snapshot, flag, and state", len(connection.messages))
 	}
 	var update AdminSocketMessage
 	if err := json.Unmarshal(connection.messages[1], &update); err != nil {
@@ -256,6 +430,14 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	}
 	if update.Event != AdminEventFlag || update.IsFlagFound == nil || !*update.IsFlagFound {
 		t.Errorf("Admin flag socket update = %#v", update)
+	}
+	var stateUpdate AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[2], &stateUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if stateUpdate.Event != AdminEventState || stateUpdate.State == nil ||
+		!stateUpdate.State.IsFlagFound {
+		t.Errorf("Admin state socket update = %#v", stateUpdate)
 	}
 
 	unauthorized := newJSONRequest(
