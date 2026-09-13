@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	socketSendQueueSize = 256
-	socketWriteTimeout  = 10 * time.Second
+	socketSendQueueSize      = 256
+	socketWriteTimeout       = 10 * time.Second
+	playerRemovedCloseReason = "Removed by an administrator."
 )
 
 type moveEvent struct {
@@ -30,10 +31,23 @@ const (
 	viewerConnection
 )
 
+type gameSocketConnection interface {
+	ReadMessage() (messageType int, data []byte, err error)
+	WriteMessage(messageType int, data []byte) error
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+	SetWriteDeadline(deadline time.Time) error
+	Close() error
+}
+
 type Sockets struct {
 	// private
 	players *Players
 	hub     *Hub
+
+	// rosterMutationMutex keeps role changes and their hub notifications in
+	// the same order as kicks. Without this boundary, a kick can observe a new
+	// private role before the hub has removed the player's old public marker.
+	rosterMutationMutex sync.Mutex
 }
 
 func (s *Sockets) Init(players *Players, games ...*Game) {
@@ -56,6 +70,61 @@ func (s *Sockets) Inform(playerID PlayerID) {
 	s.hub.inform <- playerID
 }
 
+// UpdatePlayer changes an administrator-managed role and synchronizes every
+// affected map marker before a concurrent kick can delete the player.
+func (s *Sockets) UpdatePlayer(
+	playerID PlayerID,
+	playerType PlayerType,
+) (PlayerResponse, []PlayerResponse, bool) {
+	s.rosterMutationMutex.Lock()
+	defer s.rosterMutationMutex.Unlock()
+
+	updated, demoted, found := s.players.Update(playerID, playerType)
+	if !found {
+		return updated, demoted, false
+	}
+	for _, player := range demoted {
+		s.Inform(player.ID)
+	}
+	s.Inform(playerID)
+	return updated, demoted, true
+}
+
+// UpdatePlayerByLeader applies a leader-authorized role change and synchronizes
+// its map effects before a concurrent kick can run.
+func (s *Sockets) UpdatePlayerByLeader(
+	leaderID PlayerID,
+	targetID PlayerID,
+	playerType PlayerType,
+) ([]PlayerResponse, LeaderUpdateResult) {
+	s.rosterMutationMutex.Lock()
+	defer s.rosterMutationMutex.Unlock()
+
+	changed, result := s.players.UpdateByLeader(leaderID, targetID, playerType)
+	if result != LeaderUpdateOK {
+		return changed, result
+	}
+	for _, player := range changed {
+		s.Inform(player.ID)
+	}
+	return changed, result
+}
+
+// ResetNonLeaders synchronizes reset role changes with the map hub before a
+// concurrent kick can run.
+func (s *Sockets) ResetNonLeaders() []PlayerResponse {
+	s.rosterMutationMutex.Lock()
+	defer s.rosterMutationMutex.Unlock()
+
+	changed := s.players.ResetNonLeaders()
+	for _, player := range changed {
+		if player.Status == StatusConn {
+			s.Inform(player.ID)
+		}
+	}
+	return changed
+}
+
 // ClearOfflineLocations removes all retained last-known locations while
 // leaving coordinates for currently connected players untouched.
 func (s *Sockets) ClearOfflineLocations() {
@@ -64,8 +133,19 @@ func (s *Sockets) ClearOfflineLocations() {
 	<-done
 }
 
+// KickPlayer removes a player and all of their game-hub state in the same
+// serialized operation that closes their active sockets.
+func (s *Sockets) KickPlayer(playerID PlayerID) bool {
+	s.rosterMutationMutex.Lock()
+	defer s.rosterMutationMutex.Unlock()
+
+	result := make(chan bool)
+	s.hub.kick <- KickRequest{playerID: playerID, result: result}
+	return <-result
+}
+
 type Conn struct {
-	socket   *ws.Conn
+	socket   gameSocketConnection
 	playerID PlayerID
 	role     connectionRole
 	send     chan []byte
@@ -77,6 +157,18 @@ func (c *Conn) unregister(hub *Hub) {
 	c.unregisterOnce.Do(func() {
 		hub.unregister <- c
 	})
+}
+
+func (c *Conn) closeWithPolicy(reason string) {
+	if c.socket == nil {
+		return
+	}
+	_ = c.socket.WriteControl(
+		ws.CloseMessage,
+		ws.FormatCloseMessage(ws.ClosePolicyViolation, reason),
+		time.Now().Add(socketWriteTimeout),
+	)
+	_ = c.socket.Close()
 }
 
 // writePump the only goroutine that writes to a WebSocket

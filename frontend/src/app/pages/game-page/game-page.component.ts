@@ -113,10 +113,18 @@ export class GamePageComponent {
     this.browserWindow.document.addEventListener('visibilitychange', this.onVisibilityChange);
     this.browserWindow.addEventListener('online', this.onOnline);
     this.browserWindow.addEventListener('offline', this.onOffline);
-    this.socket.start(credentials.id, () => {
-      this.pageStatus.set('Connected to PacMacro.');
-      this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
-    });
+    this.socket.start(
+      credentials.id,
+      () => {
+        this.pageStatus.set('Connected to PacMacro.');
+        this.geolocation.start((coordinate) => this.socket.sendCoordinate(coordinate));
+      },
+      () => {
+        this.geolocation.stop();
+        this.credentials.clear();
+        void this.router.navigateByUrl('/register');
+      },
+    );
   }
 
   private cleanup(): void {

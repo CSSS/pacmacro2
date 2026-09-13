@@ -76,6 +76,16 @@ describe('ApiService', () => {
     request.flush(null, { status: 204, statusText: 'No Content' });
   });
 
+  it('kicks one encoded player ID with admin credentials and an empty body', () => {
+    api.kickPlayer('AB CD/E').subscribe();
+    const request = http.expectOne('/api/admin/kick/AB%20CD%2FE');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.body).toBeNull();
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('resets the game with admin credentials', () => {
     api.resetGame().subscribe();
     const request = http.expectOne('/api/admin/reset');

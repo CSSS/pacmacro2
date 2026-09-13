@@ -1,9 +1,10 @@
 import {
-  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
+  OnInit,
   signal,
 } from '@angular/core';
 import { form, FormField, required, submit as submitForm } from '@angular/forms/signals';
@@ -20,6 +21,8 @@ import {
   PlayerType,
 } from '../../core/game.models';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { PAC_WINDOW } from '../../core/browser-window.token';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface AdminLoginModel {
   password: string;
@@ -36,9 +39,11 @@ interface AdminLoginModel {
     '[class.admin-authenticated]': 'authenticated()',
   },
 })
-export class AdminPageComponent {
+export class AdminPageComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly adminSocket = inject(AdminSocketService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly browser = inject(PAC_WINDOW);
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
@@ -52,12 +57,15 @@ export class AdminPageComponent {
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly updatesInProgress = computed(
+  protected readonly mutationInProgress = computed(
     () =>
-      !this.socketReady() ||
       this.bulkUpdating() ||
       this.flagSaving() ||
-      this.savingPlayerIds().size > 0,
+      this.savingPlayerIds().size > 0 ||
+      this.loadingPlayers(),
+  );
+  protected readonly updatesInProgress = computed(
+    () => !this.socketReady() || this.mutationInProgress(),
   );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
@@ -66,12 +74,23 @@ export class AdminPageComponent {
     required(login.password, { message: 'Enter the administrator password.' });
   });
 
-  constructor() {
-    afterNextRender(() => {
-      if (this.authenticated()) {
-        this.adminSocket.connect();
-      }
-    });
+  ngOnInit(): void {
+    if (!this.browser) {
+      return;
+    }
+
+    this.api
+      .verifyAdmin()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.authenticated.set(true);
+          this.adminSocket.connect();
+        },
+        error: () => {
+          return;
+        },
+      });
   }
 
   protected async submit(event: SubmitEvent): Promise<void> {
@@ -107,11 +126,14 @@ export class AdminPageComponent {
   }
 
   protected async refreshPlayers(): Promise<void> {
+    if (this.mutationInProgress()) {
+      return;
+    }
     this.loadingPlayers.set(true);
     this.status.set('Fetching the current player list…');
     try {
       const players = await firstValueFrom(this.api.getPlayers());
-      this.players.set(players.map((player) => ({ ...player })));
+      this.players.set(players.filter((player) => !this.adminSocket.removedPlayers.has(player.id)));
       this.status.set(`Fetched ${players.length} player${players.length === 1 ? '' : 's'}.`);
     } catch {
       this.status.set('Could not fetch the current player list.');
@@ -195,6 +217,40 @@ export class AdminPageComponent {
     } finally {
       this.bulkUpdating.set(false);
     }
+  }
+
+  protected async kickPlayer(player: Player): Promise<void> {
+    if (this.updatesInProgress()) {
+      return;
+    }
+
+    const confirmed = this.browser?.confirm(
+      `Remove ${player.name} (${player.id}) from PacMacro? They will need to register again to rejoin.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.setPlayerSaving(player.id, true);
+    this.status.set(`Removing ${player.name} (${player.id})…`);
+    try {
+      await firstValueFrom(this.api.kickPlayer(player.id));
+      this.removeLocalPlayer(player.id);
+      this.status.set(`Removed ${player.name} (${player.id}). They must register again to rejoin.`);
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 404) {
+        this.removeLocalPlayer(player.id);
+        this.status.set(`${player.name} (${player.id}) was already removed.`);
+      } else {
+        this.status.set(`Could not remove ${player.name} (${player.id}). Try again.`);
+      }
+    } finally {
+      this.setPlayerSaving(player.id, false);
+    }
+  }
+
+  private removeLocalPlayer(playerId: string): void {
+    this.players.update((players) => players.filter((player) => player.id !== playerId));
   }
 
   private setPlayerSaving(playerId: string, saving: boolean): void {

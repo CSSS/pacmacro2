@@ -1,5 +1,8 @@
-import { Service, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { inject, Service, signal } from '@angular/core';
+import { catchError, map, Observable, of } from 'rxjs';
 
+import { ApiService } from '../api.service';
 import {
   Coordinate,
   GameSocketMessage,
@@ -29,18 +32,21 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private playerId: string | null = null;
   private mode: SocketMode | null = null;
   private onConnected: (() => void) | null = null;
+  private onSessionRevoked: (() => void) | null = null;
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
   private readonly statusMessage = signal<string | null>(null);
+  private readonly api = inject(ApiService);
 
   readonly players = signal<Record<string, LivePlayer>>({});
   readonly isFlagFound = signal(false);
 
-  start(id: string, onConnected: () => void): void {
+  start(id: string, onConnected: () => void, onSessionRevoked: () => void = () => undefined): void {
     this.stop();
     this.mode = 'player';
     this.playerId = id;
     this.onConnected = onConnected;
+    this.onSessionRevoked = onSessionRevoked;
     this.resume();
   }
 
@@ -72,6 +78,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
     this.mode = null;
     this.playerId = null;
     this.onConnected = null;
+    this.onSessionRevoked = null;
     this.reconnecting = false;
     this.statusMessage.set(null);
     this.disconnect();
@@ -101,6 +108,32 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
 
   protected override onSocketClose(): void {
     this.reconnecting = true;
+  }
+
+  protected override shouldReconnect(closeEvent: CloseEvent): boolean {
+    if (this.mode !== 'player' || closeEvent.code !== WebSocketService.POLICY_VIOLATION_CODE) {
+      return true;
+    }
+
+    this.revokePlayerSession();
+    return false;
+  }
+
+  protected override allowReconnectAfterHandshakeFailure(): Observable<boolean> {
+    if (this.mode !== 'player') {
+      return of(true);
+    }
+
+    return this.api.verifyPlayer().pipe(
+      map(() => true),
+      catchError((error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+          this.revokePlayerSession();
+          return of(false);
+        }
+        return of(true);
+      }),
+    );
   }
 
   protected override onSocketError(): void {
@@ -222,6 +255,16 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
         };
       });
     }
+  }
+
+  private revokePlayerSession(): void {
+    const onSessionRevoked = this.onSessionRevoked;
+    this.mode = null;
+    this.playerId = null;
+    this.onConnected = null;
+    this.onSessionRevoked = null;
+    this.reconnecting = false;
+    onSessionRevoked?.();
   }
 }
 

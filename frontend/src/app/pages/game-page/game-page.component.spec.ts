@@ -132,13 +132,27 @@ describe('GamePageComponent leader overlay', () => {
     expect(wakeLock.initialize).toHaveBeenCalledOnce();
     expect(api.getMap).toHaveBeenCalledOnce();
     expect(gameSocket.setInitialState).toHaveBeenCalledWith(map);
-    expect(gameSocket.start).toHaveBeenCalledWith('SELF', expect.any(Function));
+    expect(gameSocket.start).toHaveBeenCalledWith(
+      'SELF',
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+
+  it('clears credentials and redirects when the game socket revokes the session', async () => {
+    await render(PlayerType.Ghost);
+    const onSessionRevoked = gameSocket.start.mock.calls[0][2] as () => void;
+
+    onSessionRevoked();
+    await fixture.whenStable();
+
+    expect(geolocation.stop).toHaveBeenCalled();
+    expect(credentials.clear).toHaveBeenCalledOnce();
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/register');
   });
 
   it('clears a rejected session and redirects without starting the game', async () => {
-    api.verifyPlayer.mockReturnValueOnce(
-      throwError(() => new HttpErrorResponse({ status: 401 })),
-    );
+    api.verifyPlayer.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 401 })));
     await render(PlayerType.Ghost);
 
     expect(credentials.clear).toHaveBeenCalledOnce();
@@ -149,9 +163,7 @@ describe('GamePageComponent leader overlay', () => {
   });
 
   it('keeps credentials and shows an error for a verification API failure', async () => {
-    api.verifyPlayer.mockReturnValueOnce(
-      throwError(() => new HttpErrorResponse({ status: 503 })),
-    );
+    api.verifyPlayer.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
     const page = await render(PlayerType.Ghost);
 
     expect(credentials.clear).not.toHaveBeenCalled();

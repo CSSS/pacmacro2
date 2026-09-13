@@ -143,7 +143,7 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/leader/update/"))
-	changed, result := l.players.UpdateByLeader(
+	_, result := l.sockets.UpdatePlayerByLeader(
 		PlayerID(cookie.Value),
 		targetID,
 		*request.Type,
@@ -161,9 +161,6 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	case LeaderUpdateConflict:
 		writeJSONError(w, http.StatusConflict)
 		return
-	}
-	for _, player := range changed {
-		l.sockets.Inform(player.ID)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -364,11 +361,20 @@ func (l *Leader) BroadcastPlayer(player PlayerResponse) {
 	}
 }
 
-func (l *Leader) BroadcastRemoval(playerID PlayerID) {
+func (l *Leader) BroadcastRemoval(player PlayerResponse) {
 	l.socketMutex.Lock()
 	defer l.socketMutex.Unlock()
 	for connection, ownerID := range l.connections {
-		if ownerID == playerID {
+		if ownerID == player.ID {
+			writeLeaderSocketMessage(connection, LeaderSocketMessage{
+				Event: LeaderEventRevoked, Reason: "Leader access was revoked.",
+			})
+			delete(l.connections, connection)
+			closeLeaderConnection(connection, "Leader access was revoked.")
+			continue
+		}
+		owner, found := l.players.Response(ownerID)
+		if !found || !IsLeaderType(owner.Type) {
 			writeLeaderSocketMessage(connection, LeaderSocketMessage{
 				Event: LeaderEventRevoked, Reason: "Leader access was revoked.",
 			})
@@ -377,7 +383,7 @@ func (l *Leader) BroadcastRemoval(playerID PlayerID) {
 			continue
 		}
 		if !writeLeaderSocketMessage(connection, LeaderSocketMessage{
-			Event: LeaderEventRemove, PlayerID: playerID,
+			Event: LeaderEventRemove, PlayerID: player.ID,
 		}) {
 			delete(l.connections, connection)
 			_ = connection.Close()

@@ -51,6 +51,7 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string, games 
 		a.game.AddObserver(a.BroadcastFlagState)
 	}
 	players.AddObserver(a.BroadcastPlayer)
+	players.AddRemovalObserver(a.BroadcastRemoval)
 
 	fmt.Print("Admin handler initialized.\n")
 }
@@ -110,6 +111,10 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeFlag(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
+	case strings.HasPrefix(requestPath, "kick/"):
+		a.ServeKickPlayer(w, r)
+	case requestPath == "verify":
+		a.ServeVerify(w, r)
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
@@ -143,13 +148,8 @@ func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
 	}
-	changed := a.players.ResetNonLeaders()
+	a.sockets.ResetNonLeaders()
 	a.sockets.ClearOfflineLocations()
-	for _, player := range changed {
-		if player.Status == StatusConn {
-			a.sockets.Inform(player.ID)
-		}
-	}
 	if a.game != nil {
 		a.game.SetFlagFound(false)
 	}
@@ -208,15 +208,46 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/update/"))
-	_, demotedPlayers, found := a.players.Update(targetID, *request.Type)
+	_, _, found := a.sockets.UpdatePlayer(targetID, *request.Type)
 	if !found {
 		writeJSONError(w, http.StatusNotFound)
 		return
 	}
-	for _, demotedPlayer := range demotedPlayers {
-		a.sockets.Inform(demotedPlayer.ID)
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// GET /api/admin/verify
+func (a *Admin) ServeVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
+		return
 	}
-	a.sockets.Inform(targetID)
+
+	cookie, err := r.Cookie(adminCookieName)
+	if err != nil || cookie.Value == "" || !credentialsMatch(cookie.Value, a.cookieValue) {
+		writeJSONError(w, http.StatusUnauthorized)
+		return
+	}
+
+	a.stateMutex.Lock()
+	a.registered = true
+	a.stateMutex.Unlock()
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/admin/kick/<ID>
+func (a *Admin) ServeKickPlayer(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+
+	playerID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/kick/"))
+	if !a.sockets.KickPlayer(playerID) {
+		writeJSONError(w, http.StatusNotFound)
+		return
+	}
 
 	w.WriteHeader(http.StatusNoContent)
 }

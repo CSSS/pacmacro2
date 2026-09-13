@@ -10,6 +10,7 @@ import (
 const (
 	AdminEventSnapshot = "snapshot"
 	AdminEventUpsert   = "upsert"
+	AdminEventRemove   = "remove"
 	AdminEventFlag     = "flag"
 )
 
@@ -17,6 +18,7 @@ type AdminSocketMessage struct {
 	Event       string           `json:"event"`
 	Players     []PlayerResponse `json:"players"`
 	Player      *PlayerResponse  `json:"player,omitempty"`
+	PlayerID    PlayerID         `json:"playerId,omitempty"`
 	IsFlagFound *bool            `json:"isFlagFound,omitempty"`
 }
 
@@ -115,6 +117,13 @@ func (a *Admin) BroadcastPlayer(player PlayerResponse) {
 	a.broadcastSocketMessage(AdminSocketMessage{
 		Event:  AdminEventUpsert,
 		Player: &player,
+	})
+}
+
+func (a *Admin) BroadcastRemoval(player PlayerResponse) {
+	a.broadcastSocketMessage(AdminSocketMessage{
+		Event:    AdminEventRemove,
+		PlayerID: player.ID,
 	})
 }
 

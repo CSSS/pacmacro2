@@ -355,3 +355,61 @@ func TestLeaderSocketSupportsMultipleConnectionsAndLiveFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestPlayerRemovalRevokesKickedLeaderAndUpdatesOtherLeaderPanels(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	kickedID := players.New(TypeLeader, "Kicked", StatusDisc)
+	otherID := players.New(TypeLeader, "Other", StatusDisc)
+	kicked := new(recordingLeaderConnection)
+	other := new(recordingLeaderConnection)
+	if !leaderAPI.addConnection(kicked, kickedID) || !leaderAPI.addConnection(other, otherID) {
+		t.Fatal("add leader connections")
+	}
+
+	players.Delete(kickedID)
+
+	kickedMessages := kicked.decoded(t)
+	if kickedMessages[len(kickedMessages)-1].Event != LeaderEventRevoked || !kicked.closed {
+		t.Errorf("kicked leader messages = %#v, closed = %v", kickedMessages, kicked.closed)
+	}
+	otherMessages := other.decoded(t)
+	if len(otherMessages) != 2 || otherMessages[1].Event != LeaderEventRemove ||
+		otherMessages[1].PlayerID != kickedID || other.closed {
+		t.Errorf("other leader messages = %#v, closed = %v", otherMessages, other.closed)
+	}
+}
+
+func TestPlayerRemovalNotifiesEveryAuthorizedLeader(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	antiLeaderID := players.New(TypeAntiPacLeader, "Anti", StatusDisc)
+	genericLeaderID := players.New(TypeLeader, "Generic", StatusDisc)
+	flagLeaderID := players.New(TypeFlagLeader, "Flag", StatusDisc)
+	targetID := players.New(TypeAntipac, "Antipac", StatusDisc)
+
+	antiConnection := new(recordingLeaderConnection)
+	genericConnection := new(recordingLeaderConnection)
+	flagConnection := new(recordingLeaderConnection)
+	for ID, connection := range map[PlayerID]*recordingLeaderConnection{
+		antiLeaderID:    antiConnection,
+		genericLeaderID: genericConnection,
+		flagLeaderID:    flagConnection,
+	} {
+		if !leaderAPI.addConnection(connection, ID) {
+			t.Fatalf("add leader connection for %q", ID)
+		}
+	}
+
+	players.Delete(targetID)
+
+	for label, connection := range map[string]*recordingLeaderConnection{
+		"AntiPac": antiConnection,
+		"generic": genericConnection,
+		"flag":    flagConnection,
+	} {
+		messages := connection.decoded(t)
+		if len(messages) != 2 || messages[1].Event != LeaderEventRemove ||
+			messages[1].PlayerID != targetID {
+			t.Errorf("%s Leader messages = %#v", label, messages)
+		}
+	}
+}

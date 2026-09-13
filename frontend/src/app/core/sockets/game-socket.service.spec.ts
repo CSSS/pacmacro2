@@ -1,5 +1,8 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 
+import { ApiService } from '../api.service';
 import { PAC_WINDOW } from '../browser-window.token';
 import { GameSocketService } from './game-socket.service';
 import { PlayerStatus, PlayerType } from '../game.models';
@@ -64,6 +67,7 @@ describe('GameSocketService', () => {
   let service: GameSocketService;
   let originalWebSocket: typeof WebSocket;
   let originalOnline: PropertyDescriptor | undefined;
+  const api = { verifyPlayer: vi.fn(() => of(undefined)) };
 
   beforeEach(() => {
     MockGameWebSocket.instances.length = 0;
@@ -76,8 +80,14 @@ describe('GameSocketService', () => {
     });
     Object.defineProperty(window.navigator, 'onLine', { configurable: true, value: true });
     TestBed.configureTestingModule({
-      providers: [GameSocketService, { provide: PAC_WINDOW, useValue: window }],
+      providers: [
+        GameSocketService,
+        { provide: ApiService, useValue: api },
+        { provide: PAC_WINDOW, useValue: window },
+      ],
     });
+    api.verifyPlayer.mockReset();
+    api.verifyPlayer.mockReturnValue(of(undefined));
     service = TestBed.inject(GameSocketService);
   });
 
@@ -235,6 +245,55 @@ describe('GameSocketService', () => {
     second.open();
     expect(service.players()).toEqual({});
     expect(onConnected).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a player policy close as session revocation without reconnecting', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const onSessionRevoked = vi.fn();
+    service.start('ABCD', () => undefined, onSessionRevoked);
+    const socket = MockGameWebSocket.instances[0];
+    socket.open();
+
+    socket.serverClose(true, 1008, 'Removed by an administrator.');
+    vi.runAllTimers();
+
+    expect(onSessionRevoked).toHaveBeenCalledOnce();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+
+    service.resume();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+  });
+
+  it('reverifies a failed player handshake and revokes a rejected session', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    api.verifyPlayer.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 401 })));
+    const onSessionRevoked = vi.fn();
+    service.start('ABCD', () => undefined, onSessionRevoked);
+
+    MockGameWebSocket.instances[0].fail();
+    vi.runAllTimers();
+
+    expect(api.verifyPlayer).toHaveBeenCalledOnce();
+    expect(onSessionRevoked).toHaveBeenCalledOnce();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+
+    service.resume();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+  });
+
+  it('keeps reconnecting when player reverification fails transiently', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    api.verifyPlayer.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+    service.start('ABCD', () => undefined);
+
+    MockGameWebSocket.instances[0].fail();
+    vi.advanceTimersByTime(1000);
+
+    expect(api.verifyPlayer).toHaveBeenCalledOnce();
+    expect(MockGameWebSocket.instances).toHaveLength(2);
   });
 
   it('suspends deliberately and resumes in the same mode', () => {

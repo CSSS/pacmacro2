@@ -3,6 +3,7 @@ package api
 import (
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestPlayerTypeNumericCompatibilityAndLabels(t *testing.T) {
@@ -131,5 +132,63 @@ func TestPlayerObserversAreAdditive(t *testing.T) {
 	players.SetStatus(ID, StatusConn)
 	if firstCalls != 2 || secondCalls != 2 {
 		t.Errorf("observer calls = %d, %d; want 2, 2", firstCalls, secondCalls)
+	}
+}
+
+func TestPlayerRemovalCannotBeFollowedByStaleUpsert(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	targetID := players.New(TypeGhost, "Target", StatusDisc)
+
+	upsertStarted := make(chan struct{})
+	releaseUpsert := make(chan struct{})
+	removalNotified := make(chan struct{})
+	events := make(chan string, 2)
+	players.AddObserver(func(player PlayerResponse) {
+		if player.ID != targetID {
+			return
+		}
+		close(upsertStarted)
+		<-releaseUpsert
+		events <- "upsert"
+	})
+	players.AddRemovalObserver(func(player PlayerResponse) {
+		if player.ID != targetID {
+			return
+		}
+		events <- "remove"
+		close(removalNotified)
+	})
+
+	updateDone := make(chan struct{})
+	go func() {
+		players.Update(targetID, TypeEdible)
+		close(updateDone)
+	}()
+	<-upsertStarted
+
+	deleteStarted := make(chan struct{})
+	deleteDone := make(chan struct{})
+	go func() {
+		close(deleteStarted)
+		players.Delete(targetID)
+		close(deleteDone)
+	}()
+	<-deleteStarted
+
+	select {
+	case <-removalNotified:
+		// Without serialized notifications, deletion overtakes the blocked
+		// upsert and clients receive the stale upsert after the removal.
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(releaseUpsert)
+	<-updateDone
+	<-deleteDone
+
+	first := <-events
+	second := <-events
+	if first != "upsert" || second != "remove" {
+		t.Errorf("notification order = %q, %q; want upsert, remove", first, second)
 	}
 }

@@ -49,14 +49,19 @@ func newPlayerResponse(ID PlayerID, player *Player) PlayerResponse {
 }
 
 type Players struct {
-	players          map[PlayerID]*Player
-	mutex            sync.Mutex
-	observers        []func(PlayerResponse)
-	removalObservers []func(PlayerID)
+	players map[PlayerID]*Player
+	mutex   sync.Mutex
+	// notificationMutex keeps observer delivery ordered while notify
+	// revalidates events against the current roster state.
+	notificationMutex sync.Mutex
+	observers         []func(PlayerResponse)
+	removalObservers  []func(PlayerResponse)
+	usedIDs           Set[PlayerID]
 }
 
 func (p *Players) Init() {
 	p.players = make(map[PlayerID]*Player)
+	p.usedIDs = NewSet[PlayerID]()
 
 	fmt.Print("Players handler initialized.\n")
 }
@@ -79,7 +84,7 @@ func (p *Players) AddObserver(observer func(PlayerResponse)) {
 	p.mutex.Unlock()
 }
 
-func (p *Players) AddRemovalObserver(observer func(PlayerID)) {
+func (p *Players) AddRemovalObserver(observer func(PlayerResponse)) {
 	if observer == nil {
 		return
 	}
@@ -89,7 +94,15 @@ func (p *Players) AddRemovalObserver(observer func(PlayerID)) {
 }
 
 func (p *Players) notify(response PlayerResponse) {
+	p.notificationMutex.Lock()
+	defer p.notificationMutex.Unlock()
+
 	p.mutex.Lock()
+	player, found := p.players[response.ID]
+	if !found || newPlayerResponse(response.ID, player) != response {
+		p.mutex.Unlock()
+		return
+	}
 	observers := append([]func(PlayerResponse){}, p.observers...)
 	p.mutex.Unlock()
 	for _, observer := range observers {
@@ -97,12 +110,19 @@ func (p *Players) notify(response PlayerResponse) {
 	}
 }
 
-func (p *Players) notifyRemoval(ID PlayerID) {
+func (p *Players) notifyRemoval(response PlayerResponse) {
+	p.notificationMutex.Lock()
+	defer p.notificationMutex.Unlock()
+
 	p.mutex.Lock()
-	observers := append([]func(PlayerID){}, p.removalObservers...)
+	if _, found := p.players[response.ID]; found {
+		p.mutex.Unlock()
+		return
+	}
+	observers := append([]func(PlayerResponse){}, p.removalObservers...)
 	p.mutex.Unlock()
 	for _, observer := range observers {
-		observer(ID)
+		observer(response)
 	}
 }
 
@@ -123,14 +143,13 @@ func (p *Players) New(playerType PlayerType, name string, status PlayerStatus) P
 
 		ID = PlayerID(ID_b)
 
-		// break if this ID isn't in use
-		if _, found := p.players[ID]; !found {
+		if !p.usedIDs.Has(ID) {
 			break
 		}
-		// continue if found
 	}
 
 	p.players[ID] = new(Player)
+	p.usedIDs.Add(ID)
 	// no need to check if it was found; we just inserted it
 	player, _ := p.players[ID]
 	player.Name = name
@@ -143,16 +162,19 @@ func (p *Players) New(playerType PlayerType, name string, status PlayerStatus) P
 	return ID
 }
 
-func (p *Players) Delete(ID PlayerID) {
+func (p *Players) Delete(ID PlayerID) (PlayerResponse, bool) {
 	p.mutex.Lock()
-	_, found := p.players[ID]
+	player, found := p.players[ID]
+	var response PlayerResponse
 	if found {
+		response = newPlayerResponse(ID, player)
 		delete(p.players, ID)
 	}
 	p.mutex.Unlock()
 	if found {
-		p.notifyRemoval(ID)
+		p.notifyRemoval(response)
 	}
+	return response, found
 }
 
 func (p *Players) SetStatus(ID PlayerID, status PlayerStatus) {

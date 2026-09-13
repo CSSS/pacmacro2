@@ -18,6 +18,10 @@ export class ApiService {
     return this.http.get<MapInfo>('/api/game/map.json');
   }
 
+  verifyAdmin(): Observable<void> {
+    return this.http.get<void>('/api/admin/verify', { withCredentials: true });
+  }
+
   verifyPlayer(): Observable<void> {
     return this.http.get<void>('/api/player/verify', { withCredentials: true });
   }
@@ -29,7 +33,11 @@ export class ApiService {
   }
 
   registerAdmin(password: string): Observable<void> {
-    return this.http.post<void>('/api/admin/register', { pass: password }, { withCredentials: true });
+    return this.http.post<void>(
+      '/api/admin/register',
+      { pass: password },
+      { withCredentials: true },
+    );
   }
 
   getPlayers(): Observable<Player[]> {
@@ -44,6 +52,12 @@ export class ApiService {
         withCredentials: true,
       },
     );
+  }
+
+  kickPlayer(playerId: string): Observable<void> {
+    return this.http.post<void>(`/api/admin/kick/${encodeURIComponent(playerId)}`, null, {
+      withCredentials: true,
+    });
   }
 
   resetGame(): Observable<void> {

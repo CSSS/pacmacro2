@@ -31,6 +31,69 @@ func TestPlayerStaysConnectedUntilLastSocketDisconnects(t *testing.T) {
 	}
 }
 
+func TestKickRemovalRespectsVisibilityAndClearsPrivateMapState(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	targetID := players.New(TypeAntipac, "Private", StatusDisc)
+	ordinaryID := players.New(TypeGhost, "Ordinary", StatusDisc)
+	otherPrivateID := players.New(TypeFlagLeader, "Other private", StatusDisc)
+	hub := NewHub(players)
+	target := newTestConnection(targetID)
+	ordinary := newTestConnection(ordinaryID)
+	otherPrivate := newTestConnection(otherPrivateID)
+	viewer := newTestViewerConnection()
+	for _, connection := range []*Conn{target, ordinary, otherPrivate, viewer} {
+		hub.registerConnection(connection)
+	}
+	for _, connection := range []*Conn{target, ordinary, otherPrivate, viewer} {
+		drainTestMessages(connection)
+	}
+	hub.coordinates[targetID] = Coordinate{Latitude: 49.27, Longitude: -122.91}
+	hub.offlineCoordinates[targetID] = Coordinate{Latitude: 49.28, Longitude: -122.92}
+	hub.awaitingFresh[targetID] = true
+
+	if !hub.kickPlayer(targetID) {
+		t.Fatal("kick private player")
+	}
+	if len(ordinary.send) != 0 || len(otherPrivate.send) != 0 {
+		t.Error("private player ID leaked in a map removal")
+	}
+	message := receiveTestMessage(t, viewer)
+	if message.Command != CMD_REMOVE || message.Data != string(targetID) {
+		t.Errorf("Admin-map removal = %#v", message)
+	}
+	if _, exists := hub.coordinates[targetID]; exists {
+		t.Error("active coordinate remains")
+	}
+	if _, exists := hub.offlineCoordinates[targetID]; exists {
+		t.Error("offline coordinate remains")
+	}
+	if _, exists := hub.awaitingFresh[targetID]; exists {
+		t.Error("pending-location state remains")
+	}
+}
+
+func TestHubRejectsConnectionWhenPlayerWasDeletedBeforeRegistration(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	playerID := players.New(TypeGhost, "Deleted", StatusDisc)
+	hub := NewHub(players)
+	players.Delete(playerID)
+	connection := newTestConnection(playerID)
+
+	hub.registerConnection(connection)
+
+	if _, exists := hub.connections[connection]; exists {
+		t.Error("deleted player's racing connection was registered")
+	}
+	if _, open := <-connection.send; open {
+		t.Error("rejected connection queue remains open")
+	}
+	if player := players.Get(playerID); player != nil {
+		t.Errorf("deleted player was recreated: %#v", player)
+	}
+}
+
 func TestGameStateSnapshotAndBroadcastDoNotChangePlayerConnectionCounts(t *testing.T) {
 	players := new(Players)
 	players.Init()
@@ -686,6 +749,87 @@ func TestAdminRetainsOfflineLocationUntilReconnectOrReset(t *testing.T) {
 		if message.Command != CMD_REMOVE || message.Data != string(targetID) {
 			t.Errorf("reset removal = %#v", message)
 		}
+	}
+}
+
+func TestConcurrentPrivateRoleUpdateAndKickRemovePublicMarker(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	ordinaryID := players.New(TypeGhost, "Ordinary", StatusDisc)
+	sockets := new(Sockets)
+	sockets.Init(players)
+
+	ordinary := newTestConnection(ordinaryID)
+	sockets.hub.register <- ordinary
+	initial := receiveTestMessage(t, ordinary)
+	if informed := informPlayer(t, initial); informed.ID != ordinaryID {
+		t.Fatalf("initial ordinary marker = %#v", informed)
+	}
+	drainTestMessages(ordinary)
+
+	viewer := newTestViewerConnection()
+	sockets.hub.register <- viewer
+	initial = receiveTestMessage(t, viewer)
+	if informed := informPlayer(t, initial); informed.ID != ordinaryID {
+		t.Fatalf("initial Admin marker = %#v", informed)
+	}
+
+	for _, privateType := range []PlayerType{TypeHidden, TypeAntipac} {
+		t.Run(TypeString(privateType), func(t *testing.T) {
+			targetID := players.New(TypeGhost, "Target", StatusDisc)
+			owner := newTestConnection(targetID)
+			sockets.hub.register <- owner
+
+			for label, connection := range map[string]*Conn{
+				"ordinary": ordinary,
+				"Admin":    viewer,
+			} {
+				message := receiveTestMessage(t, connection)
+				if informed := informPlayer(t, message); informed.ID != targetID {
+					t.Fatalf("%s initial target marker = %#v", label, informed)
+				}
+			}
+			drainTestMessages(owner)
+
+			start := make(chan struct{})
+			updateDone := make(chan struct{})
+			kickResult := make(chan bool, 1)
+			go func() {
+				<-start
+				sockets.UpdatePlayer(targetID, privateType)
+				close(updateDone)
+			}()
+			go func() {
+				<-start
+				kickResult <- sockets.KickPlayer(targetID)
+			}()
+			close(start)
+
+			<-updateDone
+			if kicked := <-kickResult; !kicked {
+				t.Fatal("concurrent kick did not find target")
+			}
+			if player := players.Get(targetID); player != nil {
+				t.Fatalf("target remains after kick: %#v", player)
+			}
+
+			removed := receiveTestMessage(t, ordinary)
+			if removed.Command != CMD_REMOVE || removed.Data != string(targetID) {
+				t.Errorf("ordinary removal = %#v", removed)
+			}
+			if len(ordinary.send) != 0 {
+				t.Errorf("ordinary received %d unexpected messages", len(ordinary.send))
+				drainTestMessages(ordinary)
+			}
+
+			var adminLast Message
+			for len(viewer.send) > 0 {
+				adminLast = receiveTestMessage(t, viewer)
+			}
+			if adminLast.Command != CMD_REMOVE || adminLast.Data != string(targetID) {
+				t.Errorf("final Admin removal = %#v", adminLast)
+			}
+		})
 	}
 }
 

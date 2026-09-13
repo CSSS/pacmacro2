@@ -1,15 +1,49 @@
 package api
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	ws "github.com/gorilla/websocket"
 )
 
 type recordingAdminConnection struct {
 	messages [][]byte
 	closed   bool
+}
+
+type recordingGameSocket struct {
+	closeMessageType int
+	closeData        []byte
+	closed           bool
+}
+
+func (c *recordingGameSocket) ReadMessage() (int, []byte, error) {
+	return 0, nil, errors.New("not implemented")
+}
+
+func (c *recordingGameSocket) WriteMessage(int, []byte) error {
+	return nil
+}
+
+func (c *recordingGameSocket) WriteControl(messageType int, data []byte, _ time.Time) error {
+	c.closeMessageType = messageType
+	c.closeData = append([]byte(nil), data...)
+	return nil
+}
+
+func (c *recordingGameSocket) SetWriteDeadline(time.Time) error {
+	return nil
+}
+
+func (c *recordingGameSocket) Close() error {
+	c.closed = true
+	return nil
 }
 
 func (c *recordingAdminConnection) WriteMessage(_ int, data []byte) error {
@@ -498,6 +532,156 @@ func TestAdminUpdateAcceptsEveryPlayerType(t *testing.T) {
 		admin.ServeHTTP(response, request)
 		if response.Code != http.StatusNoContent {
 			t.Errorf("type %d status = %d, want %d", playerType, response.Code, http.StatusNoContent)
+		}
+	}
+}
+
+func TestAdminKickAuthorizationMethodMissingAndOfflinePlayer(t *testing.T) {
+	players, admin := newAdminTestState(t, "top-secret")
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	playerID := players.New(TypeGhost, "Offline", StatusDisc)
+
+	wrongMethod := httptest.NewRecorder()
+	admin.ServeHTTP(
+		wrongMethod,
+		httptest.NewRequest(http.MethodGet, "/api/admin/kick/"+string(playerID), nil),
+	)
+	if wrongMethod.Code != http.StatusMethodNotAllowed {
+		t.Errorf("kick GET status = %d, want 405", wrongMethod.Code)
+	}
+
+	unauthorized := httptest.NewRecorder()
+	admin.ServeHTTP(
+		unauthorized,
+		httptest.NewRequest(http.MethodPost, "/api/admin/kick/"+string(playerID), nil),
+	)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized kick status = %d, want 401", unauthorized.Code)
+	}
+
+	missingRequest := httptest.NewRequest(http.MethodPost, "/api/admin/kick/MISSING", nil)
+	missingRequest.AddCookie(cookie)
+	missing := httptest.NewRecorder()
+	admin.ServeHTTP(missing, missingRequest)
+	if missing.Code != http.StatusNotFound {
+		t.Errorf("missing kick status = %d, want 404", missing.Code)
+	}
+
+	kickRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/admin/kick/"+string(playerID),
+		nil,
+	)
+	kickRequest.AddCookie(cookie)
+	kicked := httptest.NewRecorder()
+	admin.ServeHTTP(kicked, kickRequest)
+	if kicked.Code != http.StatusNoContent {
+		t.Fatalf("offline kick status = %d, want 204", kicked.Code)
+	}
+	if player := players.Get(playerID); player != nil {
+		t.Errorf("kicked offline player = %#v, want nil", player)
+	}
+
+	verify := httptest.NewRecorder()
+	verifyRequest := httptest.NewRequest(http.MethodGet, "/api/player/verify", nil)
+	verifyRequest.AddCookie(&http.Cookie{Name: "id", Value: string(playerID)})
+	players.ServeHTTP(verify, verifyRequest)
+	if verify.Code != http.StatusUnauthorized {
+		t.Errorf("kicked player verification status = %d, want 401", verify.Code)
+	}
+}
+
+func TestAdminKickConnectedPlayerCleansHubAndBroadcastsRemoval(t *testing.T) {
+	players, admin := newAdminTestState(t, "top-secret")
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	targetID := players.New(TypeGhost, "Target", StatusDisc)
+	observerID := players.New(TypeLeader, "Observer", StatusDisc)
+	firstTarget := newTestConnection(targetID)
+	secondTarget := newTestConnection(targetID)
+	firstSocket := new(recordingGameSocket)
+	secondSocket := new(recordingGameSocket)
+	firstTarget.socket = firstSocket
+	secondTarget.socket = secondSocket
+	observer := newTestConnection(observerID)
+	viewer := newTestViewerConnection()
+	for _, connection := range []*Conn{firstTarget, secondTarget, observer, viewer} {
+		admin.sockets.hub.register <- connection
+		// Receiving a snapshot also proves that the hub accepted the connection.
+		_ = receiveTestMessage(t, connection)
+	}
+	for _, connection := range []*Conn{firstTarget, secondTarget, observer, viewer} {
+		drainTestMessages(connection)
+	}
+	admin.sockets.hub.move <- moveEvent{
+		connection: firstTarget,
+		coord:      Coordinate{Latitude: 49.27, Longitude: -122.91},
+	}
+	admin.sockets.ClearOfflineLocations() // Wait until the preceding move is applied.
+	for _, connection := range []*Conn{firstTarget, secondTarget, observer, viewer} {
+		drainTestMessages(connection)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/kick/"+string(targetID), nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("connected kick status = %d, want 204", response.Code)
+	}
+	if player := players.Get(targetID); player != nil {
+		t.Errorf("kicked connected player = %#v, want nil", player)
+	}
+	if admin.sockets.hub.hasConnectionForID(targetID) {
+		t.Error("kicked player still has a hub connection")
+	}
+	if _, exists := admin.sockets.hub.coordinates[targetID]; exists {
+		t.Error("kicked player's active coordinate remains")
+	}
+	if _, exists := admin.sockets.hub.offlineCoordinates[targetID]; exists {
+		t.Error("kicked player's offline coordinate remains")
+	}
+	if _, exists := admin.sockets.hub.awaitingFresh[targetID]; exists {
+		t.Error("kicked player's pending-location state remains")
+	}
+	for index, socket := range []*recordingGameSocket{firstSocket, secondSocket} {
+		if !socket.closed || socket.closeMessageType != ws.CloseMessage || len(socket.closeData) < 2 {
+			t.Errorf("connection %d close = %#v", index, socket)
+			continue
+		}
+		if code := int(binary.BigEndian.Uint16(socket.closeData[:2])); code != ws.ClosePolicyViolation {
+			t.Errorf("connection %d close code = %d, want 1008", index, code)
+		}
+		if reason := string(socket.closeData[2:]); reason != playerRemovedCloseReason {
+			t.Errorf("connection %d close reason = %q", index, reason)
+		}
+	}
+	for label, connection := range map[string]*Conn{"player": observer, "viewer": viewer} {
+		message := receiveTestMessage(t, connection)
+		if message.Command != CMD_REMOVE || message.Data != string(targetID) {
+			t.Errorf("%s removal = %#v", label, message)
+		}
+	}
+}
+
+func TestAdminKickBroadcastsRosterRemovalToEveryAdminTab(t *testing.T) {
+	players, admin := newAdminTestState(t, "top-secret")
+	first := new(recordingAdminConnection)
+	second := new(recordingAdminConnection)
+	if !admin.addConnection(first) || !admin.addConnection(second) {
+		t.Fatal("add Admin connections")
+	}
+	playerID := players.New(TypeGhost, "Player", StatusDisc)
+
+	if !admin.sockets.KickPlayer(playerID) {
+		t.Fatal("kick player")
+	}
+	for index, connection := range []*recordingAdminConnection{first, second} {
+		var message AdminSocketMessage
+		if err := json.Unmarshal(connection.messages[len(connection.messages)-1], &message); err != nil {
+			t.Fatal(err)
+		}
+		if message.Event != AdminEventRemove || message.PlayerID != playerID {
+			t.Errorf("Admin tab %d removal = %#v", index, message)
 		}
 	}
 }
