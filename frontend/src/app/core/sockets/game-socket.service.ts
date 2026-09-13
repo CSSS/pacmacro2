@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { inject, Service, signal } from '@angular/core';
+import { inject, computed, Service, signal } from '@angular/core';
 import { catchError, map, Observable, of } from 'rxjs';
 
 import { ApiService } from '../api.service';
@@ -7,6 +7,8 @@ import {
   Coordinate,
   GameSocketMessage,
   GameState,
+  INITIAL_GAME_STATE,
+  isGameState,
   isPlayerStatus,
   isPlayerType,
   isRecord,
@@ -39,7 +41,8 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private readonly api = inject(ApiService);
 
   readonly players = signal<Record<string, LivePlayer>>({});
-  readonly isFlagFound = signal(false);
+  readonly gameState = signal<GameState>({ ...INITIAL_GAME_STATE });
+  readonly isFlagFound = computed(() => this.gameState().isFlagFound);
 
   start(id: string, onConnected: () => void, onSessionRevoked: () => void = () => undefined): void {
     this.stop();
@@ -89,7 +92,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   }
 
   setInitialState(state: GameState): void {
-    this.isFlagFound.set(state.isFlagFound);
+    this.gameState.set({ ...state });
   }
 
   protected override onSocketConnecting(reconnecting: boolean): void {
@@ -215,18 +218,18 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       return;
     }
 
-    const coordinate = message.coordinate;
-    if (!coordinate) {
-      return;
-    }
-
     if (message.command === 'state') {
       const state = parseJson(message.data);
-      if (isRecord(state) && typeof state['isFlagFound'] === 'boolean') {
-        this.isFlagFound.set(state['isFlagFound']);
+      if (isGameState(state)) {
+        this.gameState.set(state);
       } else {
         this.onInvalidMessage();
       }
+      return;
+    }
+
+    const coordinate = message.coordinate;
+    if (!coordinate) {
       return;
     }
 
@@ -275,10 +278,10 @@ function isSocketMessage(value: unknown): value is SocketMessage {
 
   switch (value['command']) {
     case 'remove':
+    case 'state':
       return true;
     case 'inform':
     case 'move':
-    case 'state':
       return isCoordinate(value['coordinate']);
     default:
       return false;

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"pacmacro/api"
@@ -30,15 +31,16 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/player/register   Register as a player and receive an ID.
 * POST  /api/admin/register    Register the administrator and set its session cookie.
 * GET   /api/admin/verify      Verify the authenticated administrator session.
+* POST  /api/admin/start       Start the game; only the administrator can do this. Optional { "durationMinutes": whole minutes }; empty, null, or {} uses the 20 minute default. No min/max.
 * POST  /api/admin/update/<ID> Update a player's type.
 * POST  /api/admin/kick/<ID>   Remove a player and revoke their session.
-* POST  /api/admin/flag        Update shared flag-found state.
+* POST  /api/admin/flag        Update shared flag-found state and signal Pacman.
 * POST  /api/admin/reset       Reset all non-leader players and game state.
 * WS    /api/admin/ws          Receive authenticated live player status updates.
 * WS    /api/admin/map/ws      View authenticated live game updates without a player.
 * GET   /api/leader/state.json Get the authenticated leader panel state.
 * POST  /api/leader/update/<ID> Update an eligible player as AntiPac Leader.
-* POST  /api/leader/flag       Update flag state as Flag Leader.
+* POST  /api/leader/flag       Capture the flag and empower Pacman as Flag Leader.
 * WS    /api/leader/ws         Receive authenticated live leader-panel updates.
 * GET   /api/player/list.json  List players.
 * GET   /api/player/verify     Verify the authenticated player session.
@@ -70,6 +72,7 @@ func main() {
 	sock.Init(&players, &game)                        // initialize sockets handler
 	admin.Init(&players, &sock, adminPassword, &game) // initialize admin handler
 	leader.Init(&players, &game, &sock)               // initialize leader handler
+	game.StartSynchronization(30 * time.Second)
 
 	http.Handle("/api/player/", corsMiddleware(&players)) // registration, list, and session verification
 	http.Handle("/api/admin/", corsMiddleware(&admin))    // registration and authenticated admin operations

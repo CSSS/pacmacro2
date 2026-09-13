@@ -20,11 +20,12 @@ import { isLeaderType, MapInfo, typeLabel } from '../../core/game.models';
 import { WakeLockService } from '../../core/wake-lock.service';
 import { GameCanvasComponent } from '../../game/game-canvas/game-canvas.component';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { GameTimerComponent } from '../../shared/game-timer/game-timer.component';
 import { LeaderOverlayComponent } from '../../shared/leader-overlay/leader-overlay.component';
 
 @Component({
   selector: 'pac-game-page',
-  imports: [BrandHeaderComponent, GameCanvasComponent, LeaderOverlayComponent],
+  imports: [BrandHeaderComponent, GameCanvasComponent, GameTimerComponent, LeaderOverlayComponent],
   providers: [GameSocketService, GeolocationService, WakeLockService],
   templateUrl: './game-page.component.html',
   styleUrl: './game-page.component.scss',
@@ -101,7 +102,7 @@ export class GamePageComponent {
     try {
       const map = await firstValueFrom(this.api.getMap());
       this.map.set(map);
-      this.socket.setInitialState(map);
+      this.socket.setInitialState(map.state);
     } catch {
       this.pageStatus.set(
         'Could not load the PacMacro map. Check the API connection and try again.',

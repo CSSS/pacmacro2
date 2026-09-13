@@ -98,7 +98,7 @@ func TestGameStateSnapshotAndBroadcastDoNotChangePlayerConnectionCounts(t *testi
 	players := new(Players)
 	players.Init()
 	playerID := players.New(TypePacman, "Player", StatusDisc)
-	game := &Game{IsFlagFound: true}
+	game := &Game{state: GameState{IsFlagFound: true}}
 	hub := NewHub(players, game)
 	playerConnection := newTestConnection(playerID)
 	hub.registerConnection(playerConnection)

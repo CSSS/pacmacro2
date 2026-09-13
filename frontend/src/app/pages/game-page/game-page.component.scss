@@ -35,6 +35,11 @@
   text-align: left;
 }
 
+.game-page__map {
+  position: relative;
+  min-width: 0;
+}
+
 @media (min-width: 48.0625rem) {
   .game-page__layout--with-panel {
     display: grid;

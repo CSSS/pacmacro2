@@ -64,6 +64,14 @@ export class ApiService {
     return this.http.post<void>('/api/admin/reset', null, { withCredentials: true });
   }
 
+  startGame(durationMinutes: number): Observable<void> {
+    return this.http.post<void>(
+      '/api/admin/start',
+      { durationMinutes },
+      { withCredentials: true },
+    );
+  }
+
   updateAdminFlag(isFlagFound: boolean): Observable<void> {
     return this.http.post<void>('/api/admin/flag', { isFlagFound }, { withCredentials: true });
   }

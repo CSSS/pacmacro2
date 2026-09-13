@@ -9,11 +9,14 @@
   </div>
 
   @if (map(); as gameMap) {
-    <pac-game-canvas
-      [map]="gameMap"
-      [players]="socket.players()"
-      selfId=""
-      [isFlagFound]="socket.isFlagFound()"
-    />
+    <div class="game-page__map">
+      <pac-game-canvas
+        [map]="gameMap"
+        [players]="socket.players()"
+        selfId=""
+        [isFlagFound]="socket.isFlagFound()"
+      />
+      <pac-game-timer [state]="socket.gameState()" [overlay]="true" />
+    </div>
   }
 </main>

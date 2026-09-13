@@ -26,7 +26,13 @@ describe('ApiService', () => {
       max: { latitude: 1, longitude: 1 },
       width: 32,
       height: 32,
-      isFlagFound: false,
+      state: {
+        isFlagFound: false,
+        phase: 'not_started',
+        startTime: null,
+        endTime: null,
+        serverTime: 1_000,
+      },
     });
   });
 
@@ -93,6 +99,15 @@ describe('ApiService', () => {
     expect(request.request.withCredentials).toBe(true);
     expect(request.request.body).toBeNull();
     request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
+  it('starts the game with admin credentials', () => {
+    api.startGame(30).subscribe();
+    const startRequest = http.expectOne('/api/admin/start');
+    expect(startRequest.request.method).toBe('POST');
+    expect(startRequest.request.withCredentials).toBe(true);
+    expect(startRequest.request.body).toEqual({ durationMinutes: 30 });
+    startRequest.flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('updates flag state with admin credentials', () => {

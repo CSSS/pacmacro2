@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 )
 
 type recordingLeaderConnection struct {
@@ -300,6 +301,31 @@ func TestFlagLeaderUpdatesAreCapabilityCheckedAndIdempotent(t *testing.T) {
 	if wrongResponse.Code != http.StatusForbidden {
 		t.Errorf("generic leader flag status = %d, want 403", wrongResponse.Code)
 	}
+}
+
+func TestFlagLeaderCaptureStartsPacmanEmpowermentTimer(t *testing.T) {
+	players, game, _, leaderAPI := newLeaderTestState()
+	flagLeaderID := players.New(TypeFlagLeader, "Flag", StatusDisc)
+	game.StartGame(DefaultGameDurationMinutes)
+	started := game.State()
+
+	request := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: new(true)})
+	addLeaderCookie(request, flagLeaderID)
+	response := httptest.NewRecorder()
+	leaderAPI.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("flag status = %d, want 204", response.Code)
+	}
+	state := game.State()
+	if !state.IsFlagFound || state.StartTime == nil || state.EndTime == nil ||
+		started.StartTime == nil || *state.StartTime != *started.StartTime {
+		t.Fatalf("game state after Flag Leader capture = %#v, started = %#v", state, started)
+	}
+	remaining := *state.EndTime - state.ServerTime
+	if remaining > (10*time.Minute).Milliseconds() || remaining < (10*time.Minute-time.Second).Milliseconds() {
+		t.Errorf("flag capture remaining time = %dms, want approximately ten minutes", remaining)
+	}
+	game.Reset()
 }
 
 func TestLeaderSocketSnapshotSelfRoleAndRevocation(t *testing.T) {

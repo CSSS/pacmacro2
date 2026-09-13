@@ -141,7 +141,7 @@ export class LeaderOverlayComponent {
     this.status.set(next ? 'Marking the flag as found…' : 'Marking the flag as not found…');
     try {
       await firstValueFrom(this.api.updateFlag(next));
-      this.status.set(next ? 'The flag is marked found.' : 'The flag is marked not found.');
+      this.status.set(next ? 'The flag is captured. Pacman is empowered.' : 'The flag is reset.');
     } catch (error) {
       this.isFlagFound.set(previous);
       this.status.set(this.actionError(error, 'update flag state'));

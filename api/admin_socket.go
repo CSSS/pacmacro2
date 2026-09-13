@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	ws "github.com/gorilla/websocket"
 )
@@ -12,6 +13,7 @@ const (
 	AdminEventUpsert   = "upsert"
 	AdminEventRemove   = "remove"
 	AdminEventFlag     = "flag"
+	AdminEventState    = "state"
 )
 
 type AdminSocketMessage struct {
@@ -20,10 +22,12 @@ type AdminSocketMessage struct {
 	Player      *PlayerResponse  `json:"player,omitempty"`
 	PlayerID    PlayerID         `json:"playerId,omitempty"`
 	IsFlagFound *bool            `json:"isFlagFound,omitempty"`
+	State       *GameState       `json:"state,omitempty"`
 }
 
 type adminSocketConnection interface {
 	WriteMessage(messageType int, data []byte) error
+	SetWriteDeadline(deadline time.Time) error
 	Close() error
 }
 
@@ -82,13 +86,17 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 
 	a.connections[connection] = struct{}{}
 	flagFound := false
+	var state *GameState
 	if a.game != nil {
-		flagFound = a.game.State().IsFlagFound
+		gameState := a.game.State()
+		flagFound = gameState.IsFlagFound
+		state = &gameState
 	}
 	message := AdminSocketMessage{
 		Event:       AdminEventSnapshot,
 		Players:     a.players.List(),
 		IsFlagFound: &flagFound,
+		State:       state,
 	}
 	if !writeAdminSocketMessage(connection, message) {
 		delete(a.connections, connection)
@@ -96,6 +104,13 @@ func (a *Admin) addConnection(connection adminSocketConnection) bool {
 		return false
 	}
 	return true
+}
+
+func (a *Admin) BroadcastGameState(state GameState) {
+	a.broadcastSocketMessage(AdminSocketMessage{
+		Event: AdminEventState,
+		State: &state,
+	})
 }
 
 func (a *Admin) BroadcastFlagState(state GameState) {
@@ -136,11 +151,18 @@ func (a *Admin) broadcastSocketMessage(message AdminSocketMessage) {
 	a.socketMutex.Lock()
 	defer a.socketMutex.Unlock()
 	for connection := range a.connections {
-		if err := connection.WriteMessage(ws.TextMessage, JSON); err != nil {
+		if !writeAdminSocketJSON(connection, JSON) {
 			delete(a.connections, connection)
 			_ = connection.Close()
 		}
 	}
+}
+
+func writeAdminSocketJSON(connection adminSocketConnection, data []byte) bool {
+	if err := connection.SetWriteDeadline(time.Now().Add(socketWriteTimeout)); err != nil {
+		return false
+	}
+	return connection.WriteMessage(ws.TextMessage, data) == nil
 }
 
 func writeAdminSocketMessage(connection adminSocketConnection, message AdminSocketMessage) bool {
@@ -148,5 +170,5 @@ func writeAdminSocketMessage(connection adminSocketConnection, message AdminSock
 	if err != nil {
 		return false
 	}
-	return connection.WriteMessage(ws.TextMessage, JSON) == nil
+	return writeAdminSocketJSON(connection, JSON)
 }

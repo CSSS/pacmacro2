@@ -1,0 +1,10 @@
+<section
+  class="game-timer"
+  [class.game-timer--urgent]="urgent()"
+  [class.game-timer--overlay]="overlay()"
+  role="timer"
+  [attr.aria-label]="accessibleTime()"
+>
+  <span class="game-timer__label">{{ label() }}</span>
+  <strong class="game-timer__time" aria-hidden="true">{{ displayTime() }}</strong>
+</section>

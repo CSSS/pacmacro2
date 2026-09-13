@@ -136,7 +136,13 @@ describe('GameSocketService', () => {
     service.startViewer();
     const socket = MockGameWebSocket.instances[0];
     socket.open();
-    service.setInitialState({ isFlagFound: false });
+    service.setInitialState({
+      isFlagFound: false,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    });
 
     socket.message({
       coordinate: { latitude: 49.2, longitude: -123 },
@@ -154,9 +160,14 @@ describe('GameSocketService', () => {
       data: 'ABCD',
     });
     socket.message({
-      coordinate: { latitude: 0, longitude: 0 },
       command: 'state',
-      data: JSON.stringify({ isFlagFound: true }),
+      data: JSON.stringify({
+        isFlagFound: true,
+        phase: 'in_progress',
+        startTime: 1_000,
+        endTime: 1_201_000,
+        serverTime: 2_000,
+      }),
     });
 
     expect(service.players()['ABCD']).toEqual({
@@ -169,6 +180,7 @@ describe('GameSocketService', () => {
       },
     });
     expect(service.isFlagFound()).toBe(true);
+    expect(service.gameState().endTime).toBe(1_201_000);
 
     socket.message({ command: 'remove', data: 'ABCD' });
     expect(service.players()).toEqual({});
@@ -179,7 +191,13 @@ describe('GameSocketService', () => {
     service.start('ABCD', () => undefined);
     const socket = MockGameWebSocket.instances[0];
     socket.open();
-    service.setInitialState({ isFlagFound: true });
+    service.setInitialState({
+      isFlagFound: true,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    });
 
     socket.message('{not-json');
     socket.message({
@@ -202,9 +220,14 @@ describe('GameSocketService', () => {
       }),
     });
     socket.message({
-      coordinate: { latitude: 0, longitude: 0 },
       command: 'state',
-      data: JSON.stringify({ isFlagFound: 'yes' }),
+      data: JSON.stringify({
+        isFlagFound: 'yes',
+        phase: 'in_progress',
+        startTime: 1_000,
+        endTime: 2_000,
+        serverTime: 1_500,
+      }),
     });
     socket.message({ coordinate: { latitude: 0, longitude: 0 }, command: 'unknown', data: '' });
 

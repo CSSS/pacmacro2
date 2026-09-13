@@ -14,12 +14,19 @@ describe('AdminMapPageComponent', () => {
     max: { latitude: 49.28, longitude: -122.9 },
     width: 32,
     height: 32,
-    isFlagFound: false,
+    state: {
+      isFlagFound: false,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    },
   };
   const gameSocket = {
     players: signal({}),
     status: signal('Not connected.'),
     isFlagFound: signal(false),
+    gameState: signal(map.state),
     setInitialState: vi.fn(),
     startViewer: vi.fn((onConnected: () => void) => onConnected()),
     resume: vi.fn(),
@@ -66,7 +73,9 @@ describe('AdminMapPageComponent', () => {
     expect(page.querySelector('main.game-page.admin-map-page')).not.toBeNull();
     expect(page.querySelector('h1')?.textContent?.trim()).toBe('PacMacro');
     expect(page.querySelector('.game-page__status')).not.toBeNull();
-    expect(page.querySelector('pac-game-canvas')).not.toBeNull();
+    const mapContainer = page.querySelector('.game-page__map');
+    expect(mapContainer?.querySelector('pac-game-canvas')).not.toBeNull();
+    expect(mapContainer?.querySelector('.game-timer-host--overlay')).not.toBeNull();
   });
 
   it('omits player identity, geolocation, controls, and wake-lock elements', async () => {
@@ -86,5 +95,6 @@ describe('AdminMapPageComponent', () => {
     expect(page.textContent).toContain('Could not load the PacMacro map');
     expect(gameSocket.startViewer).not.toHaveBeenCalled();
     expect(page.querySelector('pac-game-canvas')).toBeNull();
+    expect(page.querySelector('pac-game-timer')).toBeNull();
   });
 });

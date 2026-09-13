@@ -7,7 +7,13 @@ describe('map utilities', () => {
     max: { latitude: 20, longitude: 40 },
     width: 32,
     height: 16,
-    isFlagFound: false,
+    state: {
+      isFlagFound: false,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    },
   };
 
   it('converts the map corners and centre', () => {

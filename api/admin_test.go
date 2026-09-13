@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,8 +14,9 @@ import (
 )
 
 type recordingAdminConnection struct {
-	messages [][]byte
-	closed   bool
+	messages         [][]byte
+	closed           bool
+	writeDeadlineSet bool
 }
 
 type recordingGameSocket struct {
@@ -48,6 +50,11 @@ func (c *recordingGameSocket) Close() error {
 
 func (c *recordingAdminConnection) WriteMessage(_ int, data []byte) error {
 	c.messages = append(c.messages, append([]byte(nil), data...))
+	return nil
+}
+
+func (c *recordingAdminConnection) SetWriteDeadline(time.Time) error {
+	c.writeDeadlineSet = true
 	return nil
 }
 
@@ -141,6 +148,158 @@ func TestAdminRegistrationRejectsWrongPasswordAndAllowsSessionRenewal(t *testing
 	}
 }
 
+func TestAdminStartBeginsTwentyMinuteGame(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	connection := new(recordingAdminConnection)
+	if !admin.addConnection(connection) {
+		t.Fatal("add admin socket connection")
+	}
+	defer admin.removeConnection(connection)
+	connection.writeDeadlineSet = false
+
+	request := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("start game status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if !connection.writeDeadlineSet {
+		t.Error("Admin socket state update did not set a write deadline")
+	}
+	state := game.State()
+	if state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("game state after start = %#v, want an active deadline", state)
+	}
+	if got := *state.EndTime - *state.StartTime; got != (20 * time.Minute).Milliseconds() {
+		t.Errorf("game duration = %dms, want %dms", got, (20 * time.Minute).Milliseconds())
+	}
+	if len(connection.messages) != 3 {
+		t.Fatalf("Admin socket messages = %d, want snapshot, flag, and state", len(connection.messages))
+	}
+	var stateUpdate AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[2], &stateUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if stateUpdate.Event != AdminEventState || stateUpdate.State == nil ||
+		stateUpdate.State.Phase != GamePhaseInProgress {
+		t.Errorf("Admin timer socket update = %#v", stateUpdate)
+	}
+
+	duplicate := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	duplicate.AddCookie(cookie)
+	duplicateResponse := httptest.NewRecorder()
+	admin.ServeHTTP(duplicateResponse, duplicate)
+	if duplicateResponse.Code != http.StatusConflict {
+		t.Errorf("duplicate start status = %d, want %d", duplicateResponse.Code, http.StatusConflict)
+	}
+	game.Reset()
+}
+
+func TestAdminStartClampsDurationToSixtyMinutes(t *testing.T) {
+	for _, requestedMinutes := range []int{61, 307445735} {
+		t.Run(fmt.Sprintf("requested_%d", requestedMinutes), func(t *testing.T) {
+			players := new(Players)
+			players.Init()
+			game := new(Game)
+			sockets := new(Sockets)
+			sockets.Init(players, game)
+			admin := new(Admin)
+			admin.Init(players, sockets, "top-secret", game)
+			cookie := registerTestAdmin(t, admin, "top-secret")
+
+			request := newJSONRequest(
+				t,
+				http.MethodPost,
+				"/api/admin/start",
+				AdminStartRequest{DurationMinutes: &requestedMinutes},
+			)
+			request.AddCookie(cookie)
+			response := httptest.NewRecorder()
+			admin.ServeHTTP(response, request)
+
+			if response.Code != http.StatusNoContent {
+				t.Fatalf("start game status = %d, want %d", response.Code, http.StatusNoContent)
+			}
+			state := game.State()
+			if state.StartTime == nil || state.EndTime == nil {
+				t.Fatalf("started game state = %#v, want a deadline", state)
+			}
+			if got := *state.EndTime - *state.StartTime; got != (60 * time.Minute).Milliseconds() {
+				t.Errorf("game duration = %dms, want %dms", got, (60 * time.Minute).Milliseconds())
+			}
+			game.Reset()
+		})
+	}
+}
+
+func TestAdminStartRequiresPostAndAuthentication(t *testing.T) {
+	_, admin := newAdminTestState(t, "top-secret")
+
+	unauthorizedRequest := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
+	unauthorizedResponse := httptest.NewRecorder()
+	admin.ServeHTTP(unauthorizedResponse, unauthorizedRequest)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Errorf("unauthorized start status = %d, want %d", unauthorizedResponse.Code, http.StatusUnauthorized)
+	}
+
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	getRequest := httptest.NewRequest(http.MethodGet, "/api/admin/start", nil)
+	getRequest.AddCookie(cookie)
+	getResponse := httptest.NewRecorder()
+	admin.ServeHTTP(getResponse, getRequest)
+	if getResponse.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET start status = %d, want %d", getResponse.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestAdminFlagCaptureStartsPacmanEmpowermentTimer(t *testing.T) {
+	players := new(Players)
+	players.Init()
+	game := new(Game)
+	sockets := new(Sockets)
+	sockets.Init(players, game)
+	admin := new(Admin)
+	admin.Init(players, sockets, "top-secret", game)
+	cookie := registerTestAdmin(t, admin, "top-secret")
+	game.StartGame(DefaultGameDurationMinutes)
+	started := game.State()
+
+	request := newJSONRequest(
+		t,
+		http.MethodPost,
+		"/api/admin/flag",
+		AdminFlagRequest{IsFlagFound: new(true)},
+	)
+	request.AddCookie(cookie)
+	response := httptest.NewRecorder()
+	admin.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("capture flag status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	state := game.State()
+	if !state.IsFlagFound || state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
+		t.Fatalf("game state after flag capture = %#v, want Pacman empowered with an active deadline", state)
+	}
+	if started.StartTime == nil || *state.StartTime != *started.StartTime {
+		t.Errorf("start time after flag capture = %v, want %v", state.StartTime, started.StartTime)
+	}
+	remaining := *state.EndTime - state.ServerTime
+	if remaining > (10*time.Minute).Milliseconds() || remaining < (10*time.Minute-time.Second).Milliseconds() {
+		t.Errorf("flag capture remaining time = %dms, want approximately ten minutes", remaining)
+	}
+	game.Reset()
+}
+
 func TestAdminCookieAuthorizesPlayerUpdate(t *testing.T) {
 	players, admin := newAdminTestState(t, "top-secret")
 	cookie := registerTestAdmin(t, admin, "top-secret")
@@ -190,6 +349,7 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 		players.New(playerType, TypeString(playerType), StatusDisc)
 	}
 	game.SetFlagFound(true)
+	game.StartGame(DefaultGameDurationMinutes)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
 	request.AddCookie(cookie)
@@ -198,8 +358,9 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("reset status = %d, want 204", response.Code)
 	}
-	if game.State().IsFlagFound {
-		t.Error("flag remains found after reset")
+	state := game.State()
+	if state.IsFlagFound || state.Phase != GamePhaseNotStarted || state.StartTime != nil || state.EndTime != nil {
+		t.Errorf("game state after reset = %#v, want initial state", state)
 	}
 	for _, player := range players.List() {
 		if !IsLeaderType(player.Type) && player.Type != TypeGhost {
@@ -228,7 +389,7 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 		t.Fatal(err)
 	}
 	if snapshot.Event != AdminEventSnapshot || snapshot.IsFlagFound == nil ||
-		*snapshot.IsFlagFound {
+		*snapshot.IsFlagFound || snapshot.State == nil || snapshot.State.Phase != GamePhaseNotStarted {
 		t.Fatalf("initial Admin snapshot = %#v", snapshot)
 	}
 
@@ -247,8 +408,8 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	if !game.State().IsFlagFound {
 		t.Error("Admin flag update did not change shared game state")
 	}
-	if len(connection.messages) != 2 {
-		t.Fatalf("Admin socket messages = %d, want snapshot and flag", len(connection.messages))
+	if len(connection.messages) != 3 {
+		t.Fatalf("Admin socket messages = %d, want snapshot, flag, and state", len(connection.messages))
 	}
 	var update AdminSocketMessage
 	if err := json.Unmarshal(connection.messages[1], &update); err != nil {
@@ -256,6 +417,14 @@ func TestAdminFlagUpdatesSharedStateAndSocketClients(t *testing.T) {
 	}
 	if update.Event != AdminEventFlag || update.IsFlagFound == nil || !*update.IsFlagFound {
 		t.Errorf("Admin flag socket update = %#v", update)
+	}
+	var stateUpdate AdminSocketMessage
+	if err := json.Unmarshal(connection.messages[2], &stateUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if stateUpdate.Event != AdminEventState || stateUpdate.State == nil ||
+		!stateUpdate.State.IsFlagFound {
+		t.Errorf("Admin state socket update = %#v", stateUpdate)
 	}
 
 	unauthorized := newJSONRequest(
