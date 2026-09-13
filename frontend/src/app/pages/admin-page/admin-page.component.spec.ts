@@ -52,6 +52,7 @@ describe('AdminPageComponent', () => {
     },
   ];
   const api = {
+    verifyAdmin: vi.fn(() => of(void 0)),
     getPlayers: vi.fn(() => of(refreshedPlayers)),
     updatePlayer: vi.fn(() => of(undefined)),
     registerAdmin: vi.fn(() => of(void 0)),
@@ -64,6 +65,8 @@ describe('AdminPageComponent', () => {
     adminSocket.isFlagFound.set(false);
     adminSocket.isReady.set(true);
     adminSocket.connect.mockClear();
+    api.verifyAdmin.mockReset();
+    api.verifyAdmin.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
     api.getPlayers.mockReset();
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
@@ -93,13 +96,18 @@ describe('AdminPageComponent', () => {
     const page = fixture.nativeElement as HTMLElement;
     expect(page.querySelector('.auth-card')).not.toBeNull();
     expect(page.querySelector('.player-list')).toBeNull();
+    expect(api.verifyAdmin).toHaveBeenCalledOnce();
     expect(adminSocket.connect).not.toHaveBeenCalled();
   });
 
-  it('starts the admin player feed after rendering when already signed in', () => {
-    harness().authenticated.set(true);
+  it('restores the admin session and starts the player feed after verification', () => {
+    api.verifyAdmin.mockReturnValue(of(void 0));
     fixture.detectChanges();
 
+    const page = fixture.nativeElement as HTMLElement;
+    expect(api.verifyAdmin).toHaveBeenCalledOnce();
+    expect(page.querySelector('.auth-card')).toBeNull();
+    expect(page.querySelector('.player-list')).not.toBeNull();
     expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 
@@ -146,7 +154,7 @@ describe('AdminPageComponent', () => {
   });
 
   it('starts the admin player feed and preserves the new-tab map link', () => {
-    harness().authenticated.set(true);
+    api.verifyAdmin.mockReturnValue(of(void 0));
     fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;

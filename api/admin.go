@@ -110,6 +110,8 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeFlag(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
+	case requestPath == "verify":
+		a.ServeVerify(w, r)
 	default:
 		writeJSONError(w, http.StatusNotFound)
 	}
@@ -218,5 +220,24 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	a.sockets.Inform(targetID)
 
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *Admin) ServeVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed)
+		return
+	}
+
+	cookie, err := r.Cookie(adminCookieName)
+	if err != nil || cookie.Value == "" || !credentialsMatch(cookie.Value, a.cookieValue) {
+		writeJSONError(w, http.StatusUnauthorized)
+		return
+	}
+
+	a.stateMutex.Lock()
+	a.registered = true
+	a.stateMutex.Unlock()
+	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
 }

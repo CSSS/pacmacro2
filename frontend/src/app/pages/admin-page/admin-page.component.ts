@@ -1,9 +1,10 @@
 import {
-  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   inject,
+  OnInit,
   signal,
 } from '@angular/core';
 import { form, FormField, required, submit as submitForm } from '@angular/forms/signals';
@@ -20,6 +21,8 @@ import {
   PlayerType,
 } from '../../core/game.models';
 import { BrandHeaderComponent } from '../../shared/brand-header/brand-header.component';
+import { PAC_WINDOW } from '../../core/browser-window.token';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface AdminLoginModel {
   password: string;
@@ -36,9 +39,11 @@ interface AdminLoginModel {
     '[class.admin-authenticated]': 'authenticated()',
   },
 })
-export class AdminPageComponent {
+export class AdminPageComponent implements OnInit {
   private readonly api = inject(ApiService);
   private readonly adminSocket = inject(AdminSocketService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly browser = inject(PAC_WINDOW);
 
   protected readonly players = this.adminSocket.players;
   protected readonly isFlagFound = this.adminSocket.isFlagFound;
@@ -66,12 +71,23 @@ export class AdminPageComponent {
     required(login.password, { message: 'Enter the administrator password.' });
   });
 
-  constructor() {
-    afterNextRender(() => {
-      if (this.authenticated()) {
-        this.adminSocket.connect();
-      }
-    });
+  ngOnInit(): void {
+    if (!this.browser) {
+      return;
+    }
+
+    this.api
+      .verifyAdmin()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.authenticated.set(true);
+          this.adminSocket.connect();
+        },
+        error: () => {
+          return;
+        },
+      });
   }
 
   protected async submit(event: SubmitEvent): Promise<void> {
