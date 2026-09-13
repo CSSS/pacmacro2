@@ -143,7 +143,7 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/leader/update/"))
-	changed, result := l.players.UpdateByLeader(
+	_, result := l.sockets.UpdatePlayerByLeader(
 		PlayerID(cookie.Value),
 		targetID,
 		*request.Type,
@@ -161,9 +161,6 @@ func (l *Leader) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	case LeaderUpdateConflict:
 		writeJSONError(w, http.StatusConflict)
 		return
-	}
-	for _, player := range changed {
-		l.sockets.Inform(player.ID)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

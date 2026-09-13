@@ -148,13 +148,8 @@ func (a *Admin) ServeReset(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
 	}
-	changed := a.players.ResetNonLeaders()
+	a.sockets.ResetNonLeaders()
 	a.sockets.ClearOfflineLocations()
-	for _, player := range changed {
-		if player.Status == StatusConn {
-			a.sockets.Inform(player.ID)
-		}
-	}
 	if a.game != nil {
 		a.game.SetFlagFound(false)
 	}
@@ -213,15 +208,11 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/update/"))
-	_, demotedPlayers, found := a.players.Update(targetID, *request.Type)
+	_, _, found := a.sockets.UpdatePlayer(targetID, *request.Type)
 	if !found {
 		writeJSONError(w, http.StatusNotFound)
 		return
 	}
-	for _, demotedPlayer := range demotedPlayers {
-		a.sockets.Inform(demotedPlayer.ID)
-	}
-	a.sockets.Inform(targetID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
