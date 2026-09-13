@@ -142,7 +142,7 @@ func (g *Game) AddObserver(observer func(GameState)) {
 }
 
 func (g *Game) SetFlagFound(isFlagFound bool) bool {
-	const maximumRemaining = 10 * time.Minute
+	const flagFoundDuration = 10 * time.Minute
 
 	g.eventMutex.Lock()
 	defer g.eventMutex.Unlock()
@@ -162,14 +162,15 @@ func (g *Game) SetFlagFound(isFlagFound bool) bool {
 			g.deadlineVersion++
 			g.state.Phase = GamePhaseEnded
 			g.expiryTimer = nil
-		} else if newEndTime := now.Add(maximumRemaining).UnixMilli(); *g.state.EndTime > newEndTime {
+		} else {
 			if g.expiryTimer != nil {
 				g.expiryTimer.Stop()
 			}
 			g.deadlineVersion++
 			version := g.deadlineVersion
+			newEndTime := now.Add(flagFoundDuration).UnixMilli()
 			g.state.EndTime = timestamp(newEndTime)
-			g.expiryTimer = time.AfterFunc(maximumRemaining, func() {
+			g.expiryTimer = time.AfterFunc(flagFoundDuration, func() {
 				g.expire(version)
 			})
 		}

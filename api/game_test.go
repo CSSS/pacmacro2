@@ -137,7 +137,7 @@ func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 	game.Reset()
 }
 
-func TestGameFlagCaptureCapsDeadlineAndPreservesStartTime(t *testing.T) {
+func TestGameFlagCaptureSetsDeadlineAndPreservesStartTime(t *testing.T) {
 	game := new(Game)
 	game.StartGame(DefaultGameDurationMinutes)
 	started := game.State()
@@ -161,21 +161,33 @@ func TestGameFlagCaptureCapsDeadlineAndPreservesStartTime(t *testing.T) {
 	game.Reset()
 }
 
-func TestGameFlagCaptureDoesNotShortenDeadlineAtOrBelowTenMinutes(t *testing.T) {
+func TestGameFlagCaptureResetsDeadlineToTenMinutes(t *testing.T) {
 	for _, duration := range []time.Duration{10 * time.Minute, 5 * time.Minute} {
 		game := new(Game)
 		updates := 0
 		game.AddObserver(func(GameState) { updates++ })
 		game.Start(duration)
 		before := game.State()
+		beforeCapture := time.Now().UnixMilli()
 
 		if !game.SetFlagFound(true) {
 			t.Errorf("duration %v flag capture reported unchanged", duration)
 		}
+		afterCapture := time.Now().UnixMilli()
 		after := game.State()
-		if !after.IsFlagFound || before.StartTime == nil || before.EndTime == nil || after.StartTime == nil || after.EndTime == nil ||
-			*before.StartTime != *after.StartTime || *before.EndTime != *after.EndTime {
-			t.Errorf("duration %v changed deadline from %#v to %#v", duration, before, after)
+		if !after.IsFlagFound || before.StartTime == nil || after.StartTime == nil || after.EndTime == nil ||
+			*before.StartTime != *after.StartTime {
+			t.Errorf("duration %v changed start time from %#v to %#v", duration, before, after)
+		}
+		wantDuration := (10 * time.Minute).Milliseconds()
+		if *after.EndTime < beforeCapture+wantDuration || *after.EndTime > afterCapture+wantDuration {
+			t.Errorf(
+				"duration %v flag capture deadline = %d, want between %d and %d",
+				duration,
+				*after.EndTime,
+				beforeCapture+wantDuration,
+				afterCapture+wantDuration,
+			)
 		}
 		if updates != 2 {
 			t.Errorf("duration %v published %d updates, want start and flag capture", duration, updates)
