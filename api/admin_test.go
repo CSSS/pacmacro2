@@ -13,8 +13,9 @@ import (
 )
 
 type recordingAdminConnection struct {
-	messages [][]byte
-	closed   bool
+	messages         [][]byte
+	closed           bool
+	writeDeadlineSet bool
 }
 
 type recordingGameSocket struct {
@@ -48,6 +49,11 @@ func (c *recordingGameSocket) Close() error {
 
 func (c *recordingAdminConnection) WriteMessage(_ int, data []byte) error {
 	c.messages = append(c.messages, append([]byte(nil), data...))
+	return nil
+}
+
+func (c *recordingAdminConnection) SetWriteDeadline(time.Time) error {
+	c.writeDeadlineSet = true
 	return nil
 }
 
@@ -155,6 +161,7 @@ func TestAdminStartBeginsTwentyMinuteGame(t *testing.T) {
 		t.Fatal("add admin socket connection")
 	}
 	defer admin.removeConnection(connection)
+	connection.writeDeadlineSet = false
 
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/start", nil)
 	request.AddCookie(cookie)
@@ -163,6 +170,9 @@ func TestAdminStartBeginsTwentyMinuteGame(t *testing.T) {
 
 	if response.Code != http.StatusNoContent {
 		t.Fatalf("start game status = %d, want %d", response.Code, http.StatusNoContent)
+	}
+	if !connection.writeDeadlineSet {
+		t.Error("Admin socket state update did not set a write deadline")
 	}
 	state := game.State()
 	if state.Phase != GamePhaseInProgress || state.StartTime == nil || state.EndTime == nil {
