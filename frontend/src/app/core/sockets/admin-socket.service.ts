@@ -75,6 +75,9 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       case 'upsert': {
         return isPlayer(msg['player']);
       }
+      case 'remove': {
+        return typeof msg['playerId'] === 'string' && msg['playerId'].length > 0;
+      }
       case 'flag': {
         return typeof msg['isFlagFound'] === 'boolean';
       }
@@ -103,6 +106,10 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
           }
           return sortPlayers(updatedPlayers);
         });
+        return;
+      }
+      case 'remove': {
+        this.players.update((players) => players.filter((player) => player.id !== msg.playerId));
         return;
       }
       case 'flag': {

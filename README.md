@@ -105,6 +105,8 @@ leaving connected players' live coordinates intact.
   to a current player (including a leader), otherwise `401 Unauthorized`.
 - `POST /api/admin/reset` resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
+- `POST /api/admin/kick/<ID>` removes a player, clears their map state, and closes
+  active game sockets with policy code `1008`. The removed player must register again.
 - `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie; `players` contains Ghost and Hidden roles, plus Antipac only for an AntiPac Leader.
 - `POST /api/leader/update/<ID>` accepts `{ "type": 0|3 }` from any Leader for a
   Ghost, Hidden, or Antipac target (regardless of connection status). `{ "type": 2 }`
@@ -116,4 +118,4 @@ leaving connected players' live coordinates intact.
 Game and admin-map sockets send `state` messages whose `data` is
 `{ "isFlagFound": boolean }`, including one in every initial snapshot.
 The Admin control socket includes `isFlagFound` in its `snapshot` event and
-sends `flag` events whenever that shared state changes.
+sends `upsert`, `remove`, and `flag` events as roster and shared state change.

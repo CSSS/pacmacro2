@@ -237,6 +237,24 @@ describe('GameSocketService', () => {
     expect(onConnected).toHaveBeenCalledTimes(2);
   });
 
+  it('reports a player policy close as session revocation without reconnecting', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const onSessionRevoked = vi.fn();
+    service.start('ABCD', () => undefined, onSessionRevoked);
+    const socket = MockGameWebSocket.instances[0];
+    socket.open();
+
+    socket.serverClose(true, 1008, 'Removed by an administrator.');
+    vi.runAllTimers();
+
+    expect(onSessionRevoked).toHaveBeenCalledOnce();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+
+    service.resume();
+    expect(MockGameWebSocket.instances).toHaveLength(1);
+  });
+
   it('suspends deliberately and resumes in the same mode', () => {
     service.startViewer();
     const first = MockGameWebSocket.instances[0];

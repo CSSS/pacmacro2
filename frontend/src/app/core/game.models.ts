@@ -43,6 +43,7 @@ export interface Player {
 export type AdminSocketMessage =
   | { event: 'snapshot'; players: Player[]; isFlagFound: boolean }
   | { event: 'upsert'; player: Player }
+  | { event: 'remove'; playerId: string }
   | { event: 'flag'; isFlagFound: boolean };
 
 export interface LivePlayer {

@@ -58,8 +58,8 @@
     <section class="player-list" aria-label="Players">
       @for (player of players(); track player.id) {
         <article class="player-card" [class.player-card--offline]="!isConnected(player)">
+          <strong class="player-card__name">{{ player.name }}</strong>
           <div class="player-card__identity">
-            <strong>{{ player.name }}</strong>
             <span>{{ player.id }}</span>
             <span class="player-card__status">
               {{ isConnected(player) ? 'Connected' : 'Offline' }}
@@ -83,6 +83,16 @@
               </label>
             }
           </div>
+          <button
+            type="button"
+            class="player-card__kick"
+            [attr.aria-label]="'Remove ' + player.name + ' (' + player.id + ')'"
+            [attr.title]="'Remove ' + player.name + ' (' + player.id + ')'"
+            [disabled]="updatesInProgress()"
+            (click)="kickPlayer(player)"
+          >
+            X
+          </button>
         </article>
       } @empty {
         <p class="player-list__empty">Players will appear here when they register.</p>

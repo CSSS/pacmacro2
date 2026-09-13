@@ -54,6 +54,12 @@ export class ApiService {
     );
   }
 
+  kickPlayer(playerId: string): Observable<void> {
+    return this.http.post<void>(`/api/admin/kick/${encodeURIComponent(playerId)}`, null, {
+      withCredentials: true,
+    });
+  }
+
   resetGame(): Observable<void> {
     return this.http.post<void>('/api/admin/reset', null, { withCredentials: true });
   }

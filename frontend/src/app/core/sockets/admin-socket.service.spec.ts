@@ -181,6 +181,30 @@ describe('sockets/AdminSocketService', () => {
     });
   });
 
+  it('removes players from live removal events', () => {
+    socket.message({
+      event: 'snapshot',
+      isFlagFound: false,
+      players: [
+        {
+          id: 'AAAA',
+          name: 'Ada',
+          type: PlayerType.Ghost,
+          status: PlayerStatus.Connected,
+        },
+        {
+          id: 'BBBB',
+          name: 'Ben',
+          type: PlayerType.Ghost,
+          status: PlayerStatus.Disconnected,
+        },
+      ],
+    });
+
+    socket.message({ event: 'remove', playerId: 'AAAA' });
+    expect(service.players().map((player) => player.id)).toEqual(['BBBB']);
+  });
+
   it('applies live flag events without changing players', () => {
     socket.message({ event: 'snapshot', isFlagFound: false, players: [] });
     socket.message({ event: 'flag', isFlagFound: true });
@@ -196,6 +220,9 @@ describe('sockets/AdminSocketService', () => {
     socket.message('{not-json');
     socket.message({ event: 'unknown', players: [] });
     socket.message({ event: 'snapshot', players: [] });
+    socket.message({ event: 'remove' });
+    socket.message({ event: 'remove', playerId: '' });
+    socket.message({ event: 'remove', playerId: 123 });
 
     expect(service.players()).toEqual([]);
     expect(service.isFlagFound()).toBe(true);

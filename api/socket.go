@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	socketSendQueueSize = 256
-	socketWriteTimeout  = 10 * time.Second
+	socketSendQueueSize      = 256
+	socketWriteTimeout       = 10 * time.Second
+	playerRemovedCloseReason = "Removed by an administrator."
 )
 
 type moveEvent struct {
@@ -29,6 +30,14 @@ const (
 	playerConnection connectionRole = iota
 	viewerConnection
 )
+
+type gameSocketConnection interface {
+	ReadMessage() (messageType int, data []byte, err error)
+	WriteMessage(messageType int, data []byte) error
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+	SetWriteDeadline(deadline time.Time) error
+	Close() error
+}
 
 type Sockets struct {
 	// private
@@ -64,8 +73,16 @@ func (s *Sockets) ClearOfflineLocations() {
 	<-done
 }
 
+// KickPlayer removes a player and all of their game-hub state in the same
+// serialized operation that closes their active sockets.
+func (s *Sockets) KickPlayer(playerID PlayerID) bool {
+	result := make(chan bool)
+	s.hub.kick <- KickRequest{playerID: playerID, result: result}
+	return <-result
+}
+
 type Conn struct {
-	socket   *ws.Conn
+	socket   gameSocketConnection
 	playerID PlayerID
 	role     connectionRole
 	send     chan []byte
@@ -77,6 +94,18 @@ func (c *Conn) unregister(hub *Hub) {
 	c.unregisterOnce.Do(func() {
 		hub.unregister <- c
 	})
+}
+
+func (c *Conn) closeWithPolicy(reason string) {
+	if c.socket == nil {
+		return
+	}
+	_ = c.socket.WriteControl(
+		ws.CloseMessage,
+		ws.FormatCloseMessage(ws.ClosePolicyViolation, reason),
+		time.Now().Add(socketWriteTimeout),
+	)
+	_ = c.socket.Close()
 }
 
 // writePump the only goroutine that writes to a WebSocket

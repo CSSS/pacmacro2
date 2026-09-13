@@ -51,6 +51,7 @@ func (a *Admin) Init(players *Players, sockets *Sockets, password string, games 
 		a.game.AddObserver(a.BroadcastFlagState)
 	}
 	players.AddObserver(a.BroadcastPlayer)
+	players.AddRemovalObserver(a.BroadcastRemoval)
 
 	fmt.Print("Admin handler initialized.\n")
 }
@@ -110,6 +111,8 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeFlag(w, r)
 	case strings.HasPrefix(requestPath, "update/"):
 		a.ServeUpdate(w, r)
+	case strings.HasPrefix(requestPath, "kick/"):
+		a.ServeKickPlayer(w, r)
 	case requestPath == "verify":
 		a.ServeVerify(w, r)
 	default:
@@ -223,6 +226,7 @@ func (a *Admin) ServeUpdate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GET /api/admin/verify
 func (a *Admin) ServeVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeJSONError(w, http.StatusMethodNotAllowed)
@@ -239,5 +243,20 @@ func (a *Admin) ServeVerify(w http.ResponseWriter, r *http.Request) {
 	a.registered = true
 	a.stateMutex.Unlock()
 	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/admin/kick/<ID>
+func (a *Admin) ServeKickPlayer(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+
+	playerID := PlayerID(strings.TrimPrefix(r.URL.Path, "/api/admin/kick/"))
+	if !a.sockets.KickPlayer(playerID) {
+		writeJSONError(w, http.StatusNotFound)
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

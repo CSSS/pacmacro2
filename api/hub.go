@@ -23,6 +23,12 @@ type Hub struct {
 	inform       chan PlayerID
 	state        chan GameState
 	clearOffline chan chan struct{}
+	kick         chan KickRequest
+}
+
+type KickRequest struct {
+	playerID PlayerID
+	result   chan bool
 }
 
 func NewHub(players *Players, games ...*Game) *Hub {
@@ -38,6 +44,7 @@ func NewHub(players *Players, games ...*Game) *Hub {
 		inform:             make(chan PlayerID),
 		state:              make(chan GameState),
 		clearOffline:       make(chan chan struct{}),
+		kick:               make(chan KickRequest),
 	}
 	if len(games) > 0 {
 		hub.game = games[0]
@@ -61,6 +68,8 @@ func (h *Hub) Run() {
 		case done := <-h.clearOffline:
 			h.clearOfflineLocations()
 			close(done)
+		case request := <-h.kick:
+			request.result <- h.kickPlayer(request.playerID)
 		}
 	}
 }
@@ -108,6 +117,11 @@ func (h *Hub) registerConnection(connection *Conn) {
 		if !h.sendSnapshot(connection) {
 			h.unregisterConnection(connection)
 		}
+		return
+	}
+	if h.players.Get(connection.playerID) == nil {
+		connection.closeWithPolicy(playerRemovedCloseReason)
+		close(connection.send)
 		return
 	}
 
@@ -419,4 +433,34 @@ func (h *Hub) clearOfflineLocations() {
 		delete(h.offlineCoordinates, playerID)
 		h.broadcastRemove(playerID, onlyViewers, nil)
 	}
+}
+
+func (h *Hub) kickPlayer(playerID PlayerID) bool {
+	player, found := h.players.Delete(playerID)
+	if !found {
+		return false
+	}
+
+	delete(h.coordinates, playerID)
+	delete(h.offlineCoordinates, playerID)
+	delete(h.awaitingFresh, playerID)
+
+	var playerConnections []*Conn
+	for connection := range h.connections {
+		if connection.role == playerConnection && connection.playerID == playerID {
+			playerConnections = append(playerConnections, connection)
+		}
+	}
+	for _, connection := range playerConnections {
+		connection.closeWithPolicy(playerRemovedCloseReason)
+		h.unregisterConnection(connection)
+	}
+
+	if isMapVisibleRole(player.Type) {
+		h.broadcast(removeMessage(playerID), nil, func(connection *Conn) bool {
+			return h.connectionCanSee(connection, playerID, player.Type)
+		})
+	}
+
+	return true
 }

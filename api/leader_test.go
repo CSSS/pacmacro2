@@ -355,3 +355,26 @@ func TestLeaderSocketSupportsMultipleConnectionsAndLiveFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestPlayerRemovalRevokesKickedLeaderAndUpdatesOtherLeaderPanels(t *testing.T) {
+	players, _, _, leaderAPI := newLeaderTestState()
+	kickedID := players.New(TypeLeader, "Kicked", StatusDisc)
+	otherID := players.New(TypeLeader, "Other", StatusDisc)
+	kicked := new(recordingLeaderConnection)
+	other := new(recordingLeaderConnection)
+	if !leaderAPI.addConnection(kicked, kickedID) || !leaderAPI.addConnection(other, otherID) {
+		t.Fatal("add leader connections")
+	}
+
+	players.Delete(kickedID)
+
+	kickedMessages := kicked.decoded(t)
+	if kickedMessages[len(kickedMessages)-1].Event != LeaderEventRevoked || !kicked.closed {
+		t.Errorf("kicked leader messages = %#v, closed = %v", kickedMessages, kicked.closed)
+	}
+	otherMessages := other.decoded(t)
+	last := otherMessages[len(otherMessages)-1]
+	if last.Event != LeaderEventRemove || last.PlayerID != kickedID || other.closed {
+		t.Errorf("other leader messages = %#v, closed = %v", otherMessages, other.closed)
+	}
+}

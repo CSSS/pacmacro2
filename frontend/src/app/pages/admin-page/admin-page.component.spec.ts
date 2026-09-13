@@ -1,7 +1,7 @@
 import { signal, WritableSignal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import { Player, PlayerStatus, PlayerType } from '../../core/game.models';
@@ -55,6 +55,7 @@ describe('AdminPageComponent', () => {
     verifyAdmin: vi.fn(() => of(void 0)),
     getPlayers: vi.fn(() => of(refreshedPlayers)),
     updatePlayer: vi.fn(() => of(undefined)),
+    kickPlayer: vi.fn(() => of(undefined)),
     registerAdmin: vi.fn(() => of(void 0)),
     updateAdminFlag: vi.fn(() => of(undefined)),
     resetGame: vi.fn(() => of(undefined)),
@@ -71,6 +72,8 @@ describe('AdminPageComponent', () => {
     api.getPlayers.mockReturnValue(of(refreshedPlayers));
     api.updatePlayer.mockReset();
     api.updatePlayer.mockReturnValue(of(undefined));
+    api.kickPlayer.mockReset();
+    api.kickPlayer.mockReturnValue(of(undefined));
     api.registerAdmin.mockClear();
     api.registerAdmin.mockReturnValue(of(void 0));
     api.updateAdminFlag.mockReset();
@@ -384,6 +387,114 @@ describe('AdminPageComponent', () => {
     expect(adminSocket.isFlagFound()).toBe(false);
   });
 
+  it('cancels player removal when the native confirmation is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findKickButton('AAAA')?.click();
+    await fixture.whenStable();
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Ada (AAAA)'));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('register again'));
+    expect(api.kickPlayer).not.toHaveBeenCalled();
+    expect(adminSocket.players().some((player) => player.id === 'AAAA')).toBe(true);
+  });
+
+  it.each([
+    ['connected', 'AAAA'],
+    ['offline', 'BBBB'],
+  ])('removes a %s player after confirmation', async (_label, playerId) => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findKickButton(playerId)?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(api.kickPlayer).toHaveBeenCalledWith(playerId);
+    expect(adminSocket.players().some((player) => player.id === playerId)).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.admin-status')?.textContent,
+    ).toContain('must register again');
+  });
+
+  it('drops a stale card when the player was already removed', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.kickPlayer.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findKickButton('AAAA')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(adminSocket.players().some((player) => player.id === 'AAAA')).toBe(false);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.admin-status')?.textContent,
+    ).toContain('already removed');
+  });
+
+  it('keeps the player and reports a failed removal', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.kickPlayer.mockReturnValueOnce(throwError(() => new Error('request failed')));
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findKickButton('AAAA')?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(adminSocket.players().some((player) => player.id === 'AAAA')).toBe(true);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('.admin-status')?.textContent,
+    ).toContain('Could not remove Ada (AAAA)');
+  });
+
+  it('disables every mutation while a removal request is active', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const response = new Subject<undefined>();
+    api.kickPlayer.mockReturnValueOnce(response);
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findKickButton('AAAA')?.click();
+    fixture.detectChanges();
+
+    expect(findButton('Flag Found')?.disabled).toBe(true);
+    expect(findButton('Reset Game')?.disabled).toBe(true);
+    expect(
+      [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>(
+          'input[type="radio"]',
+        ),
+      ].every((radio) => radio.disabled),
+    ).toBe(true);
+    expect(
+      [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
+          '.player-card__kick',
+        ),
+      ].every((button) => button.disabled),
+    ).toBe(true);
+
+    response.next(undefined);
+    response.complete();
+    await fixture.whenStable();
+  });
+
+  it('renders accessible removal buttons outside each radio group', () => {
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    const button = findKickButton('AAAA');
+    expect(button?.type).toBe('button');
+    expect(button?.getAttribute('aria-label')).toBe('Remove Ada (AAAA)');
+    expect(button?.title).toBe('Remove Ada (AAAA)');
+    expect(button?.closest('[role="radiogroup"]')).toBeNull();
+  });
+
   it('can manually refresh the current player list', async () => {
     harness().authenticated.set(true);
     fixture.detectChanges();
@@ -402,6 +513,11 @@ describe('AdminPageComponent', () => {
     return [...page.querySelectorAll<HTMLButtonElement>('button')].find(
       (button) => button.textContent?.trim() === label,
     );
+  }
+
+  function findKickButton(playerId: string): HTMLButtonElement | null {
+    const page = fixture.nativeElement as HTMLElement;
+    return page.querySelector<HTMLButtonElement>(`.player-card__kick[aria-label$="(${playerId})"]`);
   }
 
   function harness(): AdminPageHarness {

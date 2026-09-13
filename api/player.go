@@ -143,16 +143,19 @@ func (p *Players) New(playerType PlayerType, name string, status PlayerStatus) P
 	return ID
 }
 
-func (p *Players) Delete(ID PlayerID) {
+func (p *Players) Delete(ID PlayerID) (PlayerResponse, bool) {
 	p.mutex.Lock()
-	_, found := p.players[ID]
+	player, found := p.players[ID]
+	var response PlayerResponse
 	if found {
+		response = newPlayerResponse(ID, player)
 		delete(p.players, ID)
 	}
 	p.mutex.Unlock()
 	if found {
 		p.notifyRemoval(ID)
 	}
+	return response, found
 }
 
 func (p *Players) SetStatus(ID PlayerID, status PlayerStatus) {

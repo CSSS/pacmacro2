@@ -213,6 +213,40 @@ export class AdminPageComponent implements OnInit {
     }
   }
 
+  protected async kickPlayer(player: Player): Promise<void> {
+    if (this.updatesInProgress()) {
+      return;
+    }
+
+    const confirmed = this.browser?.confirm(
+      `Remove ${player.name} (${player.id}) from PacMacro? They will need to register again to rejoin.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    this.setPlayerSaving(player.id, true);
+    this.status.set(`Removing ${player.name} (${player.id})…`);
+    try {
+      await firstValueFrom(this.api.kickPlayer(player.id));
+      this.removeLocalPlayer(player.id);
+      this.status.set(`Removed ${player.name} (${player.id}). They must register again to rejoin.`);
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 404) {
+        this.removeLocalPlayer(player.id);
+        this.status.set(`${player.name} (${player.id}) was already removed.`);
+      } else {
+        this.status.set(`Could not remove ${player.name} (${player.id}). Try again.`);
+      }
+    } finally {
+      this.setPlayerSaving(player.id, false);
+    }
+  }
+
+  private removeLocalPlayer(playerId: string): void {
+    this.players.update((players) => players.filter((player) => player.id !== playerId));
+  }
+
   private setPlayerSaving(playerId: string, saving: boolean): void {
     this.savingPlayerIds.update((playerIds) => {
       const updated = new Set(playerIds);
