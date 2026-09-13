@@ -35,7 +35,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 * POST  /api/admin/update/<ID> Update a player's type.
 * POST  /api/admin/kick/<ID>   Remove a player and revoke their session.
 * POST  /api/admin/flag        Update shared flag-found state and signal Pacman.
-* POST  /api/admin/antipac/empower Cap an active game timer at ten minutes.
 * POST  /api/admin/reset       Reset all non-leader players and game state.
 * WS    /api/admin/ws          Receive authenticated live player status updates.
 * WS    /api/admin/map/ws      View authenticated live game updates without a player.

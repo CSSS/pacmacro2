@@ -34,25 +34,6 @@
 
     <section class="admin-actions" aria-label="Admin actions">
       <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
-      <label class="game-length" for="game-length">
-        Game length (minutes)
-        <input
-          id="game-length"
-          type="number"
-          step="1"
-          required
-          value="20"
-          [disabled]="updatesInProgress() || !canStartGame()"
-          (input)="onGameLengthInput($event)"
-        />
-      </label>
-      <button
-        type="button"
-        [disabled]="updatesInProgress() || !canStartGame() || !isGameLengthValid()"
-        (click)="startGame()"
-      >
-        {{ startButtonLabel() }}
-      </button>
       <button
         type="button"
         class="flag-control"
@@ -74,6 +55,25 @@
       >
         {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
       </button>
+      <button
+        type="button"
+        [disabled]="updatesInProgress() || !canStartGame() || !isGameLengthValid()"
+        (click)="startGame()"
+      >
+        {{ startButtonLabel() }}
+      </button>
+      <label class="game-length" for="game-length">
+        Game length (minutes)
+        <input
+          id="game-length"
+          type="number"
+          step="1"
+          required
+          value="20"
+          [disabled]="updatesInProgress() || !canStartGame()"
+          (input)="onGameLengthInput($event)"
+        />
+      </label>
     </section>
 
     <section class="player-list" aria-label="Players">

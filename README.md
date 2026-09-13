@@ -108,7 +108,6 @@ leaving connected players' live coordinates intact.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
 - `POST /api/admin/kick/<ID>` removes a player, clears their map state, and closes
   active game sockets with policy code `1008`. The removed player must register again.
-- `POST /api/admin/antipac/empower` reduces an active game's remaining time to ten minutes for the authenticated Admin. If ten minutes or less remain, it leaves the timer unchanged. It returns `409 Conflict` when the game is not active.
 - Capturing the flag through `POST /api/admin/flag` or `POST /api/leader/flag` empowers Pacman. If more than ten minutes remain in an active game, it reduces the timer to ten minutes remaining.
 - `GET /api/leader/state.json` returns `{ leader, players, isFlagFound }` for the leader identified by the `id` cookie; `players` contains Ghost and Hidden roles, plus Antipac only for an AntiPac Leader.
 - `POST /api/leader/update/<ID>` accepts `{ "type": 0|3 }` from any Leader for a
