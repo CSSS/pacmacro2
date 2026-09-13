@@ -128,7 +128,7 @@ export class AdminPageComponent implements OnInit {
     this.status.set('Fetching the current player list…');
     try {
       const players = await firstValueFrom(this.api.getPlayers());
-      this.players.set(players.map((player) => ({ ...player })));
+      this.players.set(players.filter((player) => !this.adminSocket.removedPlayers.has(player.id)));
       this.status.set(`Fetched ${players.length} player${players.length === 1 ? '' : 's'}.`);
     } catch {
       this.status.set('Could not fetch the current player list.');

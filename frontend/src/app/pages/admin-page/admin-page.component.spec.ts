@@ -41,6 +41,7 @@ describe('AdminPageComponent', () => {
     isFlagFound: signal(false),
     isReady: signal(true),
     status: signal('Connected'),
+    removedPlayers: new Set<string>(),
     connect: vi.fn(),
   };
   const refreshedPlayers: Player[] = [
@@ -65,6 +66,7 @@ describe('AdminPageComponent', () => {
     adminSocket.players.set(initialPlayers.map((player) => ({ ...player })));
     adminSocket.isFlagFound.set(false);
     adminSocket.isReady.set(true);
+    adminSocket.removedPlayers.clear();
     adminSocket.connect.mockClear();
     api.verifyAdmin.mockReset();
     api.verifyAdmin.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 401 })));
@@ -497,15 +499,50 @@ describe('AdminPageComponent', () => {
 
   it('can manually refresh the current player list', async () => {
     harness().authenticated.set(true);
+    adminSocket.isReady.set(false);
     fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;
-    findButton('Refresh Players')?.click();
+    const refreshButton = findButton('Refresh Players');
+    expect(refreshButton?.disabled).toBe(false);
+
+    refreshButton?.click();
     await fixture.whenStable();
     fixture.detectChanges();
 
     expect(api.getPlayers).toHaveBeenCalledOnce();
     expect(page.querySelector('.player-card strong')?.textContent).toContain('Current player');
+  });
+
+  it('preserves a socket removal that arrives during a manual refresh', async () => {
+    const response = new Subject<Player[]>();
+    api.getPlayers.mockReturnValueOnce(response);
+    harness().authenticated.set(true);
+    fixture.detectChanges();
+
+    findButton('Refresh Players')?.click();
+    adminSocket.players.update((players) => players.filter((player) => player.id !== 'AAAA'));
+    adminSocket.removedPlayers.add('AAAA');
+
+    response.next([
+      initialPlayers[0],
+      {
+        id: 'EEEE',
+        name: 'Current player',
+        type: PlayerType.Hidden,
+        status: PlayerStatus.Connected,
+      },
+    ]);
+    response.complete();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const playerNames = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        '.player-card strong',
+      ),
+    ].map((element) => element.textContent?.trim());
+    expect(playerNames).toEqual(['Current player']);
   });
 
   function findButton(label: string): HTMLButtonElement | undefined {

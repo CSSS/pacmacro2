@@ -203,6 +203,35 @@ describe('sockets/AdminSocketService', () => {
 
     socket.message({ event: 'remove', playerId: 'AAAA' });
     expect(service.players().map((player) => player.id)).toEqual(['BBBB']);
+    expect(service.removedPlayers.has('AAAA')).toBe(true);
+  });
+
+  it('does not restore a removed player from a later stale upsert', () => {
+    socket.message({
+      event: 'snapshot',
+      isFlagFound: false,
+      players: [
+        {
+          id: 'AAAA',
+          name: 'Ada',
+          type: PlayerType.Ghost,
+          status: PlayerStatus.Connected,
+        },
+      ],
+    });
+
+    socket.message({ event: 'remove', playerId: 'AAAA' });
+    socket.message({
+      event: 'upsert',
+      player: {
+        id: 'AAAA',
+        name: 'Ada',
+        type: PlayerType.Pacman,
+        status: PlayerStatus.Connected,
+      },
+    });
+
+    expect(service.players()).toEqual([]);
   });
 
   it('applies live flag events without changing players', () => {

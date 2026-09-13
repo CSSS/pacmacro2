@@ -31,6 +31,7 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
 
   readonly players = signal<Player[]>([]);
   readonly isFlagFound = signal(false);
+  readonly removedPlayers = new Set<string>();
 
   /**
    * Flag that indicates the socket has non-stale data after a connect/reconnect.
@@ -96,6 +97,9 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
         return;
       }
       case 'upsert': {
+        if (this.removedPlayers.has(msg.player.id)) {
+          return;
+        }
         this.players.update((players) => {
           const existingIndex = players.findIndex((player) => player.id === msg.player.id);
           const updatedPlayers = [...players];
@@ -110,6 +114,7 @@ export class AdminSocketService extends WebSocketService<AdminSocketMessage> {
       }
       case 'remove': {
         this.players.update((players) => players.filter((player) => player.id !== msg.playerId));
+        this.removedPlayers.add(msg.playerId);
         return;
       }
       case 'flag': {
