@@ -82,4 +82,21 @@ describe('GameTimerComponent', () => {
     expect(page.textContent).toContain('01:00');
     expect(page.querySelector('.game-timer--urgent')).not.toBeNull();
   });
+
+  it('applies the compact overlay mode when requested', () => {
+    fixture = TestBed.createComponent(GameTimerComponent);
+    fixture.componentRef.setInput('state', {
+      isFlagFound: false,
+      phase: 'not_started',
+      startTime: null,
+      endTime: null,
+      serverTime: 1_000,
+    });
+    fixture.componentRef.setInput('overlay', true);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList).toContain('game-timer-host--overlay');
+    expect(host.querySelector('.game-timer--overlay')).not.toBeNull();
+  });
 });

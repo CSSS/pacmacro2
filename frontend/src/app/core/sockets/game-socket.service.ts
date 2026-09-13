@@ -218,11 +218,6 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       return;
     }
 
-    const coordinate = message.coordinate;
-    if (!coordinate) {
-      return;
-    }
-
     if (message.command === 'state') {
       const state = parseJson(message.data);
       if (isGameState(state)) {
@@ -230,6 +225,11 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       } else {
         this.onInvalidMessage();
       }
+      return;
+    }
+
+    const coordinate = message.coordinate;
+    if (!coordinate) {
       return;
     }
 

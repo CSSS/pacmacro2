@@ -122,10 +122,12 @@ describe('GamePageComponent leader overlay', () => {
   );
 
   it.each([PlayerType.Ghost, PlayerType.Leader])(
-    'shows the shared timer for player type %s',
+    'shows the timer over the map for player type %s',
     async (playerType) => {
       const page = await render(playerType);
-      expect(page.querySelector('pac-game-timer')).not.toBeNull();
+      const mapContainer = page.querySelector('.game-page__map');
+      expect(mapContainer?.querySelector('pac-game-canvas')).not.toBeNull();
+      expect(mapContainer?.querySelector('.game-timer-host--overlay')).not.toBeNull();
     },
   );
 
@@ -186,6 +188,7 @@ describe('GamePageComponent leader overlay', () => {
     expect(page.textContent).toContain('Could not verify your player session');
     expect(wakeLock.initialize).not.toHaveBeenCalled();
     expect(api.getMap).not.toHaveBeenCalled();
+    expect(page.querySelector('pac-game-timer')).toBeNull();
     expect(gameSocket.start).not.toHaveBeenCalled();
   });
 });

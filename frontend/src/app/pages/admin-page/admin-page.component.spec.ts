@@ -171,6 +171,7 @@ describe('AdminPageComponent', () => {
     expect(page.querySelector('.auth-card')).toBeNull();
     expect(page.querySelector('.player-list')).not.toBeNull();
     expect(page.querySelector('pac-game-timer')).not.toBeNull();
+    expect(page.querySelector('.game-timer-host--overlay')).toBeNull();
     expect(adminSocket.connect).toHaveBeenCalledOnce();
   });
 

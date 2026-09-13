@@ -7,8 +7,6 @@
     <h1>PacMacro</h1>
   }
 
-  <pac-game-timer [state]="socket.gameState()" />
-
   <div class="game-page__status" role="status" aria-live="polite">
     <p>{{ pageStatus() }}</p>
     <p>{{ socket.status() }}</p>
@@ -31,13 +29,16 @@
 
   <div class="game-page__layout" [class.game-page__layout--with-panel]="isLeader()">
     @if (map(); as gameMap) {
-      <pac-game-canvas
-        class="game-page__canvas"
-        [map]="gameMap"
-        [players]="socket.players()"
-        [selfId]="selfId()"
-        [isFlagFound]="socket.isFlagFound()"
-      />
+      <div class="game-page__map">
+        <pac-game-canvas
+          class="game-page__canvas"
+          [map]="gameMap"
+          [players]="socket.players()"
+          [selfId]="selfId()"
+          [isFlagFound]="socket.isFlagFound()"
+        />
+        <pac-game-timer [state]="socket.gameState()" [overlay]="true" />
+      </div>
     }
 
     <pac-leader-overlay class="game-page__panel" [active]="isLeader()" />

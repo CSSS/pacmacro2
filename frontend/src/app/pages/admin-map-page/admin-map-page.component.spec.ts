@@ -72,9 +72,10 @@ describe('AdminMapPageComponent', () => {
     expect(page.querySelector('pac-brand-header')).not.toBeNull();
     expect(page.querySelector('main.game-page.admin-map-page')).not.toBeNull();
     expect(page.querySelector('h1')?.textContent?.trim()).toBe('PacMacro');
-    expect(page.querySelector('pac-game-timer')).not.toBeNull();
     expect(page.querySelector('.game-page__status')).not.toBeNull();
-    expect(page.querySelector('pac-game-canvas')).not.toBeNull();
+    const mapContainer = page.querySelector('.game-page__map');
+    expect(mapContainer?.querySelector('pac-game-canvas')).not.toBeNull();
+    expect(mapContainer?.querySelector('.game-timer-host--overlay')).not.toBeNull();
   });
 
   it('omits player identity, geolocation, controls, and wake-lock elements', async () => {
@@ -94,5 +95,6 @@ describe('AdminMapPageComponent', () => {
     expect(page.textContent).toContain('Could not load the PacMacro map');
     expect(gameSocket.startViewer).not.toHaveBeenCalled();
     expect(page.querySelector('pac-game-canvas')).toBeNull();
+    expect(page.querySelector('pac-game-timer')).toBeNull();
   });
 });

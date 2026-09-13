@@ -43,6 +43,9 @@ export function formatCountdown(seconds: number | null): string {
   selector: 'pac-game-timer',
   templateUrl: './game-timer.component.html',
   styleUrl: './game-timer.component.scss',
+  host: {
+    '[class.game-timer-host--overlay]': 'overlay()',
+  },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GameTimerComponent {
@@ -52,6 +55,7 @@ export class GameTimerComponent {
   private readonly clockAnchor = signal<ClockAnchor>({ clientTime: 0, serverTime: 0 });
 
   readonly state = input.required<GameState>();
+  readonly overlay = input(false);
   readonly remainingSecondsChange = output<number | null>();
 
   protected readonly remainingSeconds = computed(() => {
