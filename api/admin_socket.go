@@ -120,10 +120,10 @@ func (a *Admin) BroadcastPlayer(player PlayerResponse) {
 	})
 }
 
-func (a *Admin) BroadcastRemoval(playerID PlayerID) {
+func (a *Admin) BroadcastRemoval(player PlayerResponse) {
 	a.broadcastSocketMessage(AdminSocketMessage{
 		Event:    AdminEventRemove,
-		PlayerID: playerID,
+		PlayerID: player.ID,
 	})
 }
 

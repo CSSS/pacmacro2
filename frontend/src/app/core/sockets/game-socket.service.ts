@@ -1,5 +1,8 @@
-import { Service, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { inject, Service, signal } from '@angular/core';
+import { catchError, map, Observable, of } from 'rxjs';
 
+import { ApiService } from '../api.service';
 import {
   Coordinate,
   GameSocketMessage,
@@ -33,6 +36,7 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
   private reconnecting = false;
   private suspendedReason = 'Paused while the browser is offline.';
   private readonly statusMessage = signal<string | null>(null);
+  private readonly api = inject(ApiService);
 
   readonly players = signal<Record<string, LivePlayer>>({});
   readonly isFlagFound = signal(false);
@@ -111,14 +115,25 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
       return true;
     }
 
-    const onSessionRevoked = this.onSessionRevoked;
-    this.mode = null;
-    this.playerId = null;
-    this.onConnected = null;
-    this.onSessionRevoked = null;
-    this.reconnecting = false;
-    onSessionRevoked?.();
+    this.revokePlayerSession();
     return false;
+  }
+
+  protected override allowReconnectAfterHandshakeFailure(): Observable<boolean> {
+    if (this.mode !== 'player') {
+      return of(true);
+    }
+
+    return this.api.verifyPlayer().pipe(
+      map(() => true),
+      catchError((error: unknown) => {
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+          this.revokePlayerSession();
+          return of(false);
+        }
+        return of(true);
+      }),
+    );
   }
 
   protected override onSocketError(): void {
@@ -240,6 +255,16 @@ export class GameSocketService extends WebSocketService<GameSocketMessage> {
         };
       });
     }
+  }
+
+  private revokePlayerSession(): void {
+    const onSessionRevoked = this.onSessionRevoked;
+    this.mode = null;
+    this.playerId = null;
+    this.onConnected = null;
+    this.onSessionRevoked = null;
+    this.reconnecting = false;
+    onSessionRevoked?.();
   }
 }
 

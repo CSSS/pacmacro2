@@ -1,7 +1,7 @@
 import { computed, DestroyRef, inject, Service, signal } from '@angular/core';
 import { PAC_WINDOW } from '../browser-window.token';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { EMPTY, fromEvent, Observable, Subscription, timer } from 'rxjs';
+import { EMPTY, fromEvent, Observable, of, Subscription, timer } from 'rxjs';
 import { filter, repeat, retry, switchMap, take, tap } from 'rxjs/operators';
 
 export type TransportState =
@@ -28,6 +28,7 @@ export abstract class WebSocketService<T> {
   private onlineSubscription?: Subscription;
   private reconnectAllowed = false;
   private socketOpen = false;
+  private socketOpenedForAttempt = false;
   private connectionId = 0;
   private requestedReconnectState?: TransportState;
 
@@ -57,6 +58,10 @@ export abstract class WebSocketService<T> {
 
   protected shouldReconnect(_closeEvent: CloseEvent): boolean {
     return true;
+  }
+
+  protected allowReconnectAfterHandshakeFailure(_error?: unknown): Observable<boolean> {
+    return of(true);
   }
 
   protected getConnectedState(): TransportState {
@@ -99,6 +104,7 @@ export abstract class WebSocketService<T> {
     this.reconnectAllowed = true;
     this.requestedReconnectState = undefined;
     this.socketOpen = false;
+    this.socketOpenedForAttempt = false;
     this.state.set('connecting');
     this.onSocketConnecting(false);
 
@@ -127,6 +133,7 @@ export abstract class WebSocketService<T> {
             return;
           }
           this.socketOpen = true;
+          this.socketOpenedForAttempt = true;
           this.requestedReconnectState = undefined;
           this.state.set(this.getConnectedState());
           this.onSocketOpen();
@@ -203,6 +210,7 @@ export abstract class WebSocketService<T> {
     this.reconnectAllowed = false;
     this.requestedReconnectState = undefined;
     this.socketOpen = false;
+    this.socketOpenedForAttempt = false;
 
     const subject = this.socketSubject$;
     const sub = this.socketSubscription;
@@ -300,6 +308,34 @@ export abstract class WebSocketService<T> {
       return EMPTY;
     }
 
+    if (!this.socketOpenedForAttempt) {
+      return this.allowReconnectAfterHandshakeFailure(error).pipe(
+        take(1),
+        switchMap((allowReconnect) => {
+          if (!allowReconnect) {
+            this.reconnectAllowed = false;
+            this.requestedReconnectState = undefined;
+            this.state.set('error');
+            return EMPTY;
+          }
+          return this.waitBeforeReconnect(attempt, connectionId, socketSubject$, error);
+        }),
+      );
+    }
+
+    return this.waitBeforeReconnect(attempt, connectionId, socketSubject$, error);
+  }
+
+  private waitBeforeReconnect(
+    attempt: number,
+    connectionId: number,
+    socketSubject$: WebSocketSubject<T | null>,
+    error?: unknown,
+  ): Observable<number> {
+    if (!this.reconnectAllowed || !this.isCurrentConnection(connectionId, socketSubject$)) {
+      return EMPTY;
+    }
+
     const delayIndex = Math.min(attempt - 1, WebSocketService.RECONNECT_DELAYS.length - 1);
     const delayTime = WebSocketService.RECONNECT_DELAYS[delayIndex];
     console.warn(`Reconnect attempt ${attempt} on error:`);
@@ -332,6 +368,7 @@ export abstract class WebSocketService<T> {
       return;
     }
     this.socketOpen = false;
+    this.socketOpenedForAttempt = false;
     this.state.set(this.stateWhileWaitingToReconnect());
     this.onSocketConnecting(true);
   }
@@ -364,6 +401,7 @@ export abstract class WebSocketService<T> {
     this.reconnectAllowed = false;
     this.requestedReconnectState = undefined;
     this.socketOpen = false;
+    this.socketOpenedForAttempt = false;
     this.socketSubject$ = undefined;
     this.socketSubscription = undefined;
   }

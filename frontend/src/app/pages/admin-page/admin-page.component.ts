@@ -62,7 +62,8 @@ export class AdminPageComponent implements OnInit {
       !this.socketReady() ||
       this.bulkUpdating() ||
       this.flagSaving() ||
-      this.savingPlayerIds().size > 0,
+      this.savingPlayerIds().size > 0 ||
+      this.loadingPlayers(),
   );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
