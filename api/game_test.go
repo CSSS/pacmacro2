@@ -121,7 +121,7 @@ func TestGameNewDeadlineIgnoresOldExpiry(t *testing.T) {
 
 func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 	game := new(Game)
-	if !game.StartGame() {
+	if !game.StartGame(DefaultGameDurationMinutes) {
 		t.Fatal("initial game start was rejected")
 	}
 	state := game.State()
@@ -131,7 +131,7 @@ func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 	if got := *state.EndTime - *state.StartTime; got != (20 * time.Minute).Milliseconds() {
 		t.Errorf("game duration = %dms, want %dms", got, (20 * time.Minute).Milliseconds())
 	}
-	if game.StartGame() {
+	if game.StartGame(DefaultGameDurationMinutes) {
 		t.Error("duplicate game start was accepted")
 	}
 	game.Reset()
@@ -139,7 +139,7 @@ func TestGameStartGameUsesTwentyMinuteDeadline(t *testing.T) {
 
 func TestGameFlagCaptureCapsDeadlineAndPreservesStartTime(t *testing.T) {
 	game := new(Game)
-	game.StartGame()
+	game.StartGame(DefaultGameDurationMinutes)
 	started := game.State()
 	before := time.Now().UnixMilli()
 	changed := game.SetFlagFound(true)

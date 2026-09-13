@@ -21,6 +21,8 @@ const (
 	GamePhaseEnded      GamePhase = "ended"
 )
 
+const DefaultGameDurationMinutes = 20
+
 type Game struct {
 	// private
 	players             *Players
@@ -221,8 +223,11 @@ func (g *Game) start(duration time.Duration, requireNotStarted bool) bool {
 	return true
 }
 
-func (g *Game) StartGame() bool {
-	return g.start(20*time.Minute, true)
+func (g *Game) StartGame(durationMinutes int) bool {
+	if durationMinutes <= 0 {
+		return false
+	}
+	return g.start(time.Duration(durationMinutes)*time.Minute, true)
 }
 
 func (g *Game) expire(version uint64) {

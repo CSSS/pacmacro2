@@ -72,6 +72,14 @@ export class AdminPageComponent implements OnInit {
     () => !this.socketReady() || this.mutationInProgress(),
   );
   protected readonly canStartGame = computed(() => this.gameState().phase === 'not_started');
+  protected readonly gameLengthMinutes = signal(20);
+  protected readonly isGameLengthValid = computed(() => {
+    const value = this.gameLengthMinutes();
+    return Number.isInteger(value) && value > 0;
+  });
+  protected readonly startButtonLabel = computed(
+    () => `Start Game — ${this.gameLengthMinutes()}:00`,
+  );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
 
@@ -202,14 +210,20 @@ export class AdminPageComponent implements OnInit {
     }
   }
 
+  protected onGameLengthInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.gameLengthMinutes.set(input.valueAsNumber);
+  }
+
   protected async startGame(): Promise<void> {
-    if (this.updatesInProgress() || !this.canStartGame()) {
+    if (this.updatesInProgress() || !this.canStartGame() || !this.isGameLengthValid()) {
       return;
     }
+    const minutes = this.gameLengthMinutes();
     this.timerSaving.set(true);
-    this.status.set('Starting the 20-minute game timer…');
+    this.status.set(`Starting the ${minutes}-minute game timer…`);
     try {
-      await firstValueFrom(this.api.startGame());
+      await firstValueFrom(this.api.startGame(minutes));
       this.status.set('The game timer started.');
     } catch (error) {
       this.status.set(

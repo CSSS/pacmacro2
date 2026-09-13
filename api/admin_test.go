@@ -222,7 +222,7 @@ func TestAdminFlagCaptureStartsPacmanEmpowermentTimer(t *testing.T) {
 	admin := new(Admin)
 	admin.Init(players, sockets, "top-secret", game)
 	cookie := registerTestAdmin(t, admin, "top-secret")
-	game.StartGame()
+	game.StartGame(DefaultGameDurationMinutes)
 	started := game.State()
 
 	request := newJSONRequest(
@@ -301,7 +301,7 @@ func TestAdminResetPreservesLeadersAndClearsFlag(t *testing.T) {
 		players.New(playerType, TypeString(playerType), StatusDisc)
 	}
 	game.SetFlagFound(true)
-	game.StartGame()
+	game.StartGame(DefaultGameDurationMinutes)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/admin/reset", nil)
 	request.AddCookie(cookie)

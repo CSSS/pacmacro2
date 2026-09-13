@@ -3,10 +3,13 @@
 package api
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -24,6 +27,10 @@ type AdminUpdateRequest struct {
 
 type AdminFlagRequest struct {
 	IsFlagFound *bool `json:"isFlagFound"`
+}
+
+type AdminStartRequest struct {
+	DurationMinutes *int `json:"durationMinutes"`
 }
 
 type Admin struct {
@@ -123,7 +130,10 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/admin/start starts the twenty-minute game timer.
+// POST /api/admin/start starts a game timer with an optional duration.
+// Accepts an optional JSON body { "durationMinutes": whole minutes }.
+// An empty body, null, or {} starts the 20-minute default. There is no
+// minimum or maximum; any positive whole minutes are accepted.
 func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
 	if !a.authorizePost(w, r) {
 		return
@@ -133,11 +143,55 @@ func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !a.game.StartGame() {
+	durationMinutes, ok := parseStartDuration(w, r)
+	if !ok {
+		return
+	}
+
+	if !a.game.StartGame(durationMinutes) {
 		writeJSONError(w, http.StatusConflict)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func parseStartDuration(w http.ResponseWriter, r *http.Request) (int, bool) {
+	if r.Body == nil {
+		return DefaultGameDurationMinutes, true
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxJSONBodySize+1))
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest)
+		return 0, false
+	}
+	if int64(len(body)) > maxJSONBodySize {
+		writeJSONError(w, http.StatusBadRequest)
+		return 0, false
+	}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return DefaultGameDurationMinutes, true
+	}
+
+	var request AdminStartRequest
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		writeJSONError(w, http.StatusBadRequest)
+		return 0, false
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeJSONError(w, http.StatusBadRequest)
+		return 0, false
+	}
+	if request.DurationMinutes == nil {
+		return DefaultGameDurationMinutes, true
+	}
+	if *request.DurationMinutes <= 0 {
+		writeJSONError(w, http.StatusBadRequest)
+		return 0, false
+	}
+	return *request.DurationMinutes, true
 }
 
 // POST /api/admin/flag updates the shared flag-found and Pacman empowerment state.

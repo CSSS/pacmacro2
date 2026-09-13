@@ -102,11 +102,11 @@ describe('ApiService', () => {
   });
 
   it('starts the game with admin credentials', () => {
-    api.startGame().subscribe();
+    api.startGame(30).subscribe();
     const startRequest = http.expectOne('/api/admin/start');
     expect(startRequest.request.method).toBe('POST');
     expect(startRequest.request.withCredentials).toBe(true);
-    expect(startRequest.request.body).toBeNull();
+    expect(startRequest.request.body).toEqual({ durationMinutes: 30 });
     startRequest.flush(null, { status: 204, statusText: 'No Content' });
   });
 

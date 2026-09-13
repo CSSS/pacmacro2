@@ -306,7 +306,7 @@ func TestFlagLeaderUpdatesAreCapabilityCheckedAndIdempotent(t *testing.T) {
 func TestFlagLeaderCaptureStartsPacmanEmpowermentTimer(t *testing.T) {
 	players, game, _, leaderAPI := newLeaderTestState()
 	flagLeaderID := players.New(TypeFlagLeader, "Flag", StatusDisc)
-	game.StartGame()
+	game.StartGame(DefaultGameDurationMinutes)
 	started := game.State()
 
 	request := newJSONRequest(t, http.MethodPost, "/api/leader/flag", LeaderFlagRequest{IsFlagFound: new(true)})
