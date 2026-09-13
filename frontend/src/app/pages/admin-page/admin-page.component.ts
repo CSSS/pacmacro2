@@ -57,13 +57,15 @@ export class AdminPageComponent implements OnInit {
   protected readonly playerTypes = PLAYER_TYPES;
   protected readonly PlayerType = PlayerType;
   private readonly savingPlayerIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly updatesInProgress = computed(
+  protected readonly mutationInProgress = computed(
     () =>
-      !this.socketReady() ||
       this.bulkUpdating() ||
       this.flagSaving() ||
       this.savingPlayerIds().size > 0 ||
       this.loadingPlayers(),
+  );
+  protected readonly updatesInProgress = computed(
+    () => !this.socketReady() || this.mutationInProgress(),
   );
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
@@ -124,6 +126,9 @@ export class AdminPageComponent implements OnInit {
   }
 
   protected async refreshPlayers(): Promise<void> {
+    if (this.mutationInProgress()) {
+      return;
+    }
     this.loadingPlayers.set(true);
     this.status.set('Fetching the current player list…');
     try {
