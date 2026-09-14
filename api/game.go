@@ -18,6 +18,7 @@ type GamePhase string
 const (
 	GamePhaseNotStarted GamePhase = "not_started"
 	GamePhaseInProgress GamePhase = "in_progress"
+	GamePhasePaused     GamePhase = "paused"
 	GamePhaseEnded      GamePhase = "ended"
 )
 
@@ -35,6 +36,7 @@ type Game struct {
 	state               GameState
 	expiryTimer         *time.Timer
 	deadlineVersion     uint64
+	pausedRemaining     time.Duration
 	synchronizationOnce sync.Once
 
 	// public
@@ -119,6 +121,10 @@ func (g *Game) stateLocked(serverTime int64) GameState {
 	}
 	state.StartTime = copyTimestamp(state.StartTime)
 	state.EndTime = copyTimestamp(state.EndTime)
+	if state.Phase == GamePhasePaused {
+		adjusted := serverTime + int64(g.pausedRemaining/time.Millisecond)
+		state.EndTime = timestamp(adjusted)
+	}
 	state.ServerTime = serverTime
 	return state
 }
@@ -218,6 +224,7 @@ func (g *Game) start(duration time.Duration, requireNotStarted bool) bool {
 	g.state.Phase = GamePhaseInProgress
 	g.state.StartTime = timestamp(startTime)
 	g.state.EndTime = timestamp(endTime)
+	g.pausedRemaining = 0
 	g.expiryTimer = time.AfterFunc(duration, func() {
 		g.expire(version)
 	})
@@ -235,6 +242,63 @@ func (g *Game) StartGame(durationMinutes int) bool {
 		durationMinutes = MaxGameDurationMinutes
 	}
 	return g.start(time.Duration(durationMinutes)*time.Minute, true)
+}
+
+func (g *Game) Pause() bool {
+	g.eventMutex.Lock()
+	defer g.eventMutex.Unlock()
+
+	g.mutex.Lock()
+	if g.state.Phase != GamePhaseInProgress || g.state.EndTime == nil {
+		g.mutex.Unlock()
+		return false
+	}
+	now := time.Now().UnixMilli()
+	remaining := *g.state.EndTime - now
+	if remaining <= 0 {
+		g.mutex.Unlock()
+		return false
+	}
+	if g.expiryTimer != nil {
+		g.expiryTimer.Stop()
+		g.expiryTimer = nil
+	}
+	g.deadlineVersion++
+	g.state.Phase = GamePhasePaused
+	g.pausedRemaining = time.Duration(remaining) * time.Millisecond
+	g.mutex.Unlock()
+
+	g.publishState()
+	return true
+}
+
+func (g *Game) Resume() bool {
+	g.eventMutex.Lock()
+	defer g.eventMutex.Unlock()
+
+	g.mutex.Lock()
+	if g.state.Phase != GamePhasePaused {
+		g.mutex.Unlock()
+		return false
+	}
+	remaining := g.pausedRemaining
+	if remaining <= 0 {
+		g.mutex.Unlock()
+		return false
+	}
+	now := time.Now()
+	g.deadlineVersion++
+	version := g.deadlineVersion
+	g.state.Phase = GamePhaseInProgress
+	g.state.EndTime = timestamp(now.Add(remaining).UnixMilli())
+	g.pausedRemaining = 0
+	g.expiryTimer = time.AfterFunc(remaining, func() {
+		g.expire(version)
+	})
+	g.mutex.Unlock()
+
+	g.publishState()
+	return true
 }
 
 func (g *Game) expire(version uint64) {
@@ -279,6 +343,7 @@ func (g *Game) Reset() bool {
 		g.expiryTimer = nil
 	}
 	g.deadlineVersion++
+	g.pausedRemaining = 0
 	g.state = GameState{Phase: GamePhaseNotStarted}
 	g.mutex.Unlock()
 

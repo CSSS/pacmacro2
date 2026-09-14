@@ -60,7 +60,7 @@ export interface SocketMessage {
 
 export type GameSocketMessage = SocketMessage | Coordinate;
 
-export type GamePhase = 'not_started' | 'in_progress' | 'ended';
+export type GamePhase = 'not_started' | 'in_progress' | 'paused' | 'ended';
 
 export interface GameState {
   isFlagFound: boolean;
@@ -165,6 +165,7 @@ export function isGameState(value: unknown): value is GameState {
     typeof value['isFlagFound'] === 'boolean' &&
     (value['phase'] === 'not_started' ||
       value['phase'] === 'in_progress' ||
+      value['phase'] === 'paused' ||
       value['phase'] === 'ended') &&
     (value['startTime'] === null || Number.isFinite(value['startTime'])) &&
     (value['endTime'] === null || Number.isFinite(value['endTime'])) &&

@@ -83,6 +83,62 @@ describe('GameTimerComponent', () => {
     expect(page.querySelector('.game-timer--urgent')).not.toBeNull();
   });
 
+  it('freezes the countdown while paused despite local clock drift', () => {
+    const paused: GameState = {
+      isFlagFound: false,
+      phase: 'paused',
+      startTime: 1_000_000,
+      endTime: 1_600_000,
+      serverTime: 1_000_000,
+    };
+
+    expect(remainingCountdownSeconds(paused, 1_000_000)).toBe(600);
+    expect(remainingCountdownSeconds(paused, 1_010_000)).toBe(600);
+    expect(remainingCountdownSeconds(paused, 1_610_000)).toBe(600);
+  });
+
+  it('keeps the same paused remaining across server rebroadcasts', () => {
+    const before: GameState = {
+      isFlagFound: false,
+      phase: 'paused',
+      startTime: 1_000_000,
+      endTime: 1_600_000,
+      serverTime: 1_000_000,
+    };
+    const after: GameState = {
+      isFlagFound: false,
+      phase: 'paused',
+      startTime: 1_000_000,
+      endTime: 1_630_000,
+      serverTime: 1_030_000,
+    };
+
+    expect(remainingCountdownSeconds(after, 1_030_000)).toBe(
+      remainingCountdownSeconds(before, 1_000_000),
+    );
+  });
+
+  it('displays a frozen paused timer that does not tick locally', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+    const page = render({
+      isFlagFound: false,
+      phase: 'paused',
+      startTime: 1_000_000,
+      endTime: 1_600_000,
+      serverTime: 1_000_000,
+    });
+
+    expect(page.textContent).toContain('Game paused');
+    expect(page.textContent).toContain('10:00');
+
+    vi.advanceTimersByTime(5_000);
+    fixture.detectChanges();
+
+    expect(page.textContent).toContain('10:00');
+    expect(page.textContent).toContain('Game paused');
+  });
+
   it('applies the compact overlay mode when requested', () => {
     fixture = TestBed.createComponent(GameTimerComponent);
     fixture.componentRef.setInput('state', {

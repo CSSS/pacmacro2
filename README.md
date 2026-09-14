@@ -104,6 +104,8 @@ leaving connected players' live coordinates intact.
 - `GET /api/player/verify` returns `204 No Content` when the `id` cookie belongs
   to a current player (including a leader), otherwise `401 Unauthorized`.
 - `POST /api/admin/start` accepts an optional `{ "durationMinutes": whole minutes }` to start a game timer of that length for the authenticated Admin. An empty body, `null`, or `{}` starts the 20-minute default. Positive values above 60 are reduced to 60 minutes; fractional, nonnumeric, or non-positive values return `400 Bad Request`. It returns `409 Conflict` if the game has already started and has not been reset.
+- `POST /api/admin/pause` freezes an `in_progress` game timer as `paused`, preserving the remaining time. It returns `409 Conflict` unless the game is `in_progress`.
+- `POST /api/admin/resume` resumes a `paused` game timer as `in_progress`, shifting the deadline by the frozen remaining time. It returns `409 Conflict` unless the game is `paused`.
 - `POST /api/admin/reset` cancels the game timer, resets every non-leader to Ghost, clears flag-found state, and clears retained Admin-map locations.
 - `POST /api/admin/flag` accepts `{ "isFlagFound": boolean }` from the authenticated Admin.
 - `POST /api/admin/kick/<ID>` removes a player, clears their map state, and closes

@@ -115,6 +115,10 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.ServeMapSocket(w, r)
 	case requestPath == "start":
 		a.ServeStart(w, r)
+	case requestPath == "pause":
+		a.ServePause(w, r)
+	case requestPath == "resume":
+		a.ServeResume(w, r)
 	case requestPath == "reset":
 		a.ServeReset(w, r)
 	case requestPath == "flag":
@@ -149,6 +153,38 @@ func (a *Admin) ServeStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !a.game.StartGame(durationMinutes) {
+		writeJSONError(w, http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/admin/pause pauses an in-progress game timer.
+func (a *Admin) ServePause(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+	if a.game == nil {
+		writeJSONError(w, http.StatusServiceUnavailable)
+		return
+	}
+	if !a.game.Pause() {
+		writeJSONError(w, http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/admin/resume resumes a paused game timer.
+func (a *Admin) ServeResume(w http.ResponseWriter, r *http.Request) {
+	if !a.authorizePost(w, r) {
+		return
+	}
+	if a.game == nil {
+		writeJSONError(w, http.StatusServiceUnavailable)
+		return
+	}
+	if !a.game.Resume() {
 		writeJSONError(w, http.StatusConflict)
 		return
 	}

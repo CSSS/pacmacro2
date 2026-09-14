@@ -26,6 +26,9 @@ export function remainingCountdownSeconds(state: GameState, serverNow: number): 
   if (state.phase === 'ended') {
     return 0;
   }
+  if (state.phase === 'paused') {
+    return Math.max(0, Math.ceil((state.endTime - state.serverTime) / 1000));
+  }
   return Math.max(0, Math.ceil((state.endTime - serverNow) / 1000));
 }
 
@@ -63,11 +66,15 @@ export class GameTimerComponent {
   });
   protected readonly displayTime = computed(() => formatCountdown(this.remainingSeconds()));
   protected readonly hasEnded = computed(
-    () => this.state().phase === 'ended' || this.remainingSeconds() === 0,
+    () => this.state().phase === 'ended' || (this.state().phase !== 'paused' && this.remainingSeconds() === 0),
   );
   protected readonly label = computed(() => {
     if (this.state().phase === 'not_started') {
       return 'Waiting for game to start';
+    }
+
+    if (this.state().phase === 'paused') {
+      return 'Game paused';
     }
 
     if (this.state().isFlagFound) {
