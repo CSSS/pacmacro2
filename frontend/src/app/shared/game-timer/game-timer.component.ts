@@ -27,7 +27,7 @@ export function remainingCountdownSeconds(state: GameState, serverNow: number): 
     return 0;
   }
   if (state.phase === 'paused') {
-    return Math.max(0, Math.ceil((state.endTime - serverNow) / 1000));
+    return Math.max(0, Math.ceil((state.endTime - state.serverTime) / 1000));
   }
   return Math.max(0, Math.ceil((state.endTime - serverNow) / 1000));
 }
