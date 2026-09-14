@@ -27,33 +27,12 @@
       <h1>Admin</h1>
     </header>
 
-    <pac-game-timer [state]="gameState()" />
-
     <p class="admin-connection-status" role="status">Websocket: {{ connectionStatus() }}</p>
     <p class="admin-status" role="status" aria-live="polite">{{ status() }}</p>
-
-    <section class="admin-actions" aria-label="Admin actions">
-      <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
-      <button
-        type="button"
-        class="flag-control"
-        [class.button-secondary]="!isFlagFound()"
-        [attr.aria-pressed]="isFlagFound()"
-        [disabled]="updatesInProgress()"
-        (click)="toggleFlagFound()"
-      >
-        Flag Found
-      </button>
+    <section class="controls">
+      <pac-game-timer [state]="gameState()" />
       <button type="button" [disabled]="updatesInProgress()" (click)="resetGame()">
         Reset Game
-      </button>
-      <button
-        type="button"
-        class="button-secondary"
-        [disabled]="mutationInProgress()"
-        (click)="refreshPlayers()"
-      >
-        {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
       </button>
       <button
         type="button"
@@ -75,6 +54,28 @@
           (input)="onGameLengthInput($event)"
         />
       </label>
+    </section>
+
+    <section class="controls admin-actions" aria-label="Admin actions">
+      <a class="button admin-map-link" href="/admin/map" target="_blank" rel="noopener">Open Map</a>
+      <button
+        type="button"
+        class="flag-control"
+        [class.button-secondary]="!isFlagFound()"
+        [attr.aria-pressed]="isFlagFound()"
+        [disabled]="updatesInProgress()"
+        (click)="toggleFlagFound()"
+      >
+        Flag Found
+      </button>
+      <button
+        type="button"
+        class="button-secondary"
+        [disabled]="mutationInProgress()"
+        (click)="refreshPlayers()"
+      >
+        {{ loadingPlayers() ? 'Fetching…' : 'Refresh Players' }}
+      </button>
     </section>
 
     <section class="player-list" aria-label="Players">

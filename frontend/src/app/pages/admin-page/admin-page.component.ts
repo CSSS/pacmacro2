@@ -78,9 +78,7 @@ export class AdminPageComponent implements OnInit {
     const value = this.gameLengthMinutes();
     return Number.isInteger(value) && value > 0 && value <= this.MAX_GAME_LENGTH_MINUTES;
   });
-  protected readonly startButtonLabel = computed(
-    () => `Start Game — ${this.gameLengthMinutes()}:00`,
-  );
+  protected readonly startButtonLabel = computed(() => 'Start Game');
 
   protected readonly loginModel = signal<AdminLoginModel>({ password: '' });
 
