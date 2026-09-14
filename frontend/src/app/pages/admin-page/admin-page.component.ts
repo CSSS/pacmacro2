@@ -73,6 +73,8 @@ export class AdminPageComponent implements OnInit {
     () => !this.socketReady() || this.mutationInProgress(),
   );
   protected readonly canStartGame = computed(() => this.gameState().phase === 'not_started');
+  protected readonly canPauseGame = computed(() => this.gameState().phase === 'in_progress');
+  protected readonly canResumeGame = computed(() => this.gameState().phase === 'paused');
   protected readonly gameLengthMinutes = signal(20);
   protected readonly isGameLengthValid = computed(() => {
     const value = this.gameLengthMinutes();
@@ -229,6 +231,46 @@ export class AdminPageComponent implements OnInit {
         error instanceof HttpErrorResponse && error.status === 409
           ? 'The game has already started. Reset it before starting again.'
           : 'Could not start the game timer. Register as admin in this browser first.',
+      );
+    } finally {
+      this.timerSaving.set(false);
+    }
+  }
+
+  protected async pauseGame(): Promise<void> {
+    if (this.updatesInProgress() || !this.canPauseGame()) {
+      return;
+    }
+    this.timerSaving.set(true);
+    this.status.set('Pausing the game timer…');
+    try {
+      await firstValueFrom(this.api.pauseGame());
+      this.status.set('The game is paused.');
+    } catch (error) {
+      this.status.set(
+        error instanceof HttpErrorResponse && error.status === 409
+          ? 'The game cannot be paused in its current state.'
+          : 'Could not pause the game timer. Register as admin in this browser first.',
+      );
+    } finally {
+      this.timerSaving.set(false);
+    }
+  }
+
+  protected async resumeGame(): Promise<void> {
+    if (this.updatesInProgress() || !this.canResumeGame()) {
+      return;
+    }
+    this.timerSaving.set(true);
+    this.status.set('Resuming the game timer…');
+    try {
+      await firstValueFrom(this.api.resumeGame());
+      this.status.set('The game timer resumed.');
+    } catch (error) {
+      this.status.set(
+        error instanceof HttpErrorResponse && error.status === 409
+          ? 'The game cannot be resumed in its current state.'
+          : 'Could not resume the game timer. Register as admin in this browser first.',
       );
     } finally {
       this.timerSaving.set(false);

@@ -41,6 +41,20 @@
       >
         {{ startButtonLabel() }}
       </button>
+      <button
+        type="button"
+        [disabled]="updatesInProgress() || !canPauseGame()"
+        (click)="pauseGame()"
+      >
+        Pause Game
+      </button>
+      <button
+        type="button"
+        [disabled]="updatesInProgress() || !canResumeGame()"
+        (click)="resumeGame()"
+      >
+        Resume Game
+      </button>
       <label class="game-length" for="game-length">
         Game length (minutes)
         <input
