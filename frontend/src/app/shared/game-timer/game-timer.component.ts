@@ -69,6 +69,10 @@ export class GameTimerComponent {
     if (this.state().phase === 'not_started') {
       return 'Waiting for game to start';
     }
+
+    if (this.state().isFlagFound) {
+      return 'Pac-Man has the flag';
+    }
     return this.hasEnded() ? 'Game ended' : 'Game time remaining';
   });
   protected readonly urgent = computed(() => {
